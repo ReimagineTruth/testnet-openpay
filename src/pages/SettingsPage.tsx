@@ -67,7 +67,7 @@ const SettingsPage = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/signin");
+    navigate("/auth");
   };
 
   const handleEnableNotifications = async () => {

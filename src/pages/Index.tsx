@@ -15,7 +15,7 @@ const Index = () => {
       if (session) {
         navigate("/dashboard");
       } else {
-        navigate("/signin");
+        navigate("/auth");
       }
       setChecking(false);
     });
