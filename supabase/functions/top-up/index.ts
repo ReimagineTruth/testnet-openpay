@@ -47,6 +47,27 @@ serve(async (req) => {
 
     if (error) throw error;
 
+    // Record top-up as a self transaction so activity, notifications,
+    // realtime hooks, and admin ledger all include it consistently.
+    const { error: transactionError } = await supabase
+      .from("transactions")
+      .insert({
+        sender_id: user.id,
+        receiver_id: user.id,
+        amount: parsedAmount,
+        note: "Wallet top up",
+        status: "completed",
+      });
+
+    if (transactionError) {
+      // Best-effort rollback of wallet update if transaction log fails.
+      await supabase
+        .from("wallets")
+        .update({ balance: wallet.balance, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      throw transactionError;
+    }
+
     return jsonResponse({ success: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";

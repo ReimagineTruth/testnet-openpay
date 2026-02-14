@@ -18,6 +18,7 @@ interface Transaction {
   created_at: string;
   other_name?: string;
   is_sent?: boolean;
+  is_topup?: boolean;
 }
 
 const Dashboard = () => {
@@ -63,6 +64,7 @@ const Dashboard = () => {
               ...tx,
               other_name: profile?.full_name || "Unknown",
               is_sent: tx.sender_id === user.id,
+              is_topup: tx.sender_id === user.id && tx.receiver_id === user.id,
             };
           }),
         );
@@ -133,11 +135,13 @@ const Dashboard = () => {
                   <div>
                     <p className="font-semibold text-foreground">{tx.other_name}</p>
                     <p className="text-xs text-muted-foreground">{format(new Date(tx.created_at), "MMM d, yyyy")}</p>
-                    <p className="text-xs text-muted-foreground">{tx.is_sent ? "Payment" : "Received"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {tx.is_topup ? "Top up" : tx.is_sent ? "Payment" : "Received"}
+                    </p>
                   </div>
                 </div>
-                <p className={`font-semibold ${tx.is_sent ? "text-foreground" : "text-paypal-success"}`}>
-                  {tx.is_sent ? "-" : "+"}
+                <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-foreground" : "text-paypal-success"}`}>
+                  {tx.is_topup ? "+" : tx.is_sent ? "-" : "+"}
                   {formatCurrency(tx.amount)}
                 </p>
               </div>

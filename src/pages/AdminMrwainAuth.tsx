@@ -39,7 +39,7 @@ const AdminMrwainAuth = () => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setLoading(false);
       if (error) toast.error(error.message);
-      else navigate("/dashboard");
+      else navigate("/admin-dashboard");
       return;
     }
 
@@ -61,7 +61,7 @@ const AdminMrwainAuth = () => {
     if (error) toast.error(error.message);
     else {
       toast.success("Account created");
-      navigate("/dashboard");
+      navigate("/admin-dashboard");
     }
   };
 
@@ -139,6 +139,9 @@ const AdminMrwainAuth = () => {
           <p className="mt-4 text-center text-xs text-muted-foreground">
             By continuing, you agree to our <Link to="/terms" className="text-paypal-blue font-medium">Terms</Link> and{" "}
             <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
+          </p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Already signed in? <Link to="/admin-dashboard" className="font-medium text-paypal-blue">Open admin dashboard</Link>
           </p>
         </div>
       </div>

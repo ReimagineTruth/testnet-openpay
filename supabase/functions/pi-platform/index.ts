@@ -12,6 +12,15 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const parseJson = (raw: string) => {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return { raw };
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -26,46 +35,88 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const { action, paymentId, txid, accessToken } = await req.json();
-    if (!action || !paymentId || !accessToken) {
-      return jsonResponse({ error: "Missing required fields" }, 400);
+    const { action, paymentId, txid, accessToken, adId } = await req.json();
+    if (!action || typeof action !== "string") {
+      return jsonResponse({ error: "Missing action" }, 400);
+    }
+
+    if (action === "auth_verify") {
+      if (!accessToken || typeof accessToken !== "string") {
+        return jsonResponse({ error: "Missing accessToken" }, 400);
+      }
+
+      const piResponse = await fetch("https://api.minepi.com/v2/me", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = parseJson(await piResponse.text());
+      if (!piResponse.ok) {
+        return jsonResponse({ error: "Pi auth verification failed", status: piResponse.status, data }, 400);
+      }
+      return jsonResponse({ success: true, data });
     }
 
     const apiKey = Deno.env.get("PI_API_KEY");
     if (!apiKey) return jsonResponse({ error: "PI_API_KEY is not configured" }, 500);
 
+    if (action === "ad_verify") {
+      if (!adId || typeof adId !== "string") {
+        return jsonResponse({ error: "Missing adId" }, 400);
+      }
+
+      const piResponse = await fetch(`https://api.minepi.com/v2/ads_network/status/${adId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Key ${apiKey}`,
+        },
+      });
+
+      const data = parseJson(await piResponse.text());
+      if (!piResponse.ok) {
+        return jsonResponse({ error: "Pi ad verification failed", status: piResponse.status, data }, 400);
+      }
+
+      return jsonResponse({ success: true, data });
+    }
+
+    if (!paymentId || typeof paymentId !== "string") {
+      return jsonResponse({ error: "Missing paymentId" }, 400);
+    }
+
     const endpointBase = `https://api.minepi.com/v2/payments/${paymentId}`;
     let endpoint = endpointBase;
-    let method = "POST";
+    let method: "GET" | "POST" = "POST";
     let body: Record<string, unknown> | undefined;
 
-    if (action === "approve") endpoint = `${endpointBase}/approve`;
-    else if (action === "complete") {
+    if (action === "approve" || action === "payment_approve") {
+      endpoint = `${endpointBase}/approve`;
+    } else if (action === "complete" || action === "payment_complete") {
       endpoint = `${endpointBase}/complete`;
-      body = txid ? { txid } : undefined;
-    } else if (action === "cancel") endpoint = `${endpointBase}/cancel`;
-    else return jsonResponse({ error: "Invalid action" }, 400);
+      if (txid && typeof txid === "string") body = { txid };
+    } else if (action === "cancel" || action === "payment_cancel") {
+      endpoint = `${endpointBase}/cancel`;
+    } else if (action === "get" || action === "payment_get") {
+      endpoint = endpointBase;
+      method = "GET";
+    } else {
+      return jsonResponse({ error: "Invalid action" }, 400);
+    }
 
     const piResponse = await fetch(endpoint, {
       method,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Key ${apiKey}`,
-        "Pi-User-Token": accessToken,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const raw = await piResponse.text();
-    let data: unknown = {};
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = { raw };
-    }
-
+    const data = parseJson(await piResponse.text());
     if (!piResponse.ok) {
-      return jsonResponse({ error: "Pi API call failed", status: piResponse.status, data }, 400);
+      return jsonResponse({ error: "Pi payment API call failed", status: piResponse.status, data }, 400);
     }
 
     return jsonResponse({ success: true, data });

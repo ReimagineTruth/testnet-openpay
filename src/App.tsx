@@ -20,6 +20,7 @@ import ProfilePage from "./pages/ProfilePage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import PiAuthPage from "./pages/PiAuthPage";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
@@ -40,6 +41,7 @@ const App = () => {
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<PiAuthPage />} />
               <Route path="/admin-mrwain" element={<AdminMrwainAuth />} />
+              <Route path="/admin-dashboard" element={<AdminDashboard />} />
               <Route path="/signin" element={<Navigate to="/admin-mrwain?mode=signin" replace />} />
               <Route path="/signup" element={<Navigate to="/admin-mrwain?mode=signup" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />

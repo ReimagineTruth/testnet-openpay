@@ -55,8 +55,14 @@ export const useRealtimePushNotifications = () => {
             filter: `receiver_id=eq.${user.id}`,
           },
           async (payload) => {
-            const amount = Number((payload.new as { amount?: number }).amount || 0).toFixed(2);
-            await maybeNotify("Payment received", `$${amount} was added to your balance.`);
+            const tx = payload.new as { amount?: number; sender_id?: string; receiver_id?: string };
+            const amount = Number(tx.amount || 0).toFixed(2);
+            const isTopUp = tx.sender_id === tx.receiver_id && tx.receiver_id === user.id;
+            if (isTopUp) {
+              await maybeNotify("Top up successful", `$${amount} was added to your balance.`);
+            } else {
+              await maybeNotify("Payment received", `$${amount} was added to your balance.`);
+            }
           },
         )
         .subscribe();

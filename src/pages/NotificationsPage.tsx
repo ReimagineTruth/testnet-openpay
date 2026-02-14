@@ -56,11 +56,14 @@ const NotificationsPage = () => {
       const notifications: NotificationItem[] = [];
 
       (transactionsRes.data || []).forEach((tx) => {
+        const topup = tx.sender_id === user.id && tx.receiver_id === user.id;
         const incoming = tx.receiver_id === user.id;
         notifications.push({
           id: `tx-${tx.id}`,
-          title: incoming ? "Payment received" : "Payment sent",
-          description: `$${Number(tx.amount).toFixed(2)}`,
+          title: topup ? "Top up successful" : incoming ? "Payment received" : "Payment sent",
+          description: topup
+            ? `+$${Number(tx.amount).toFixed(2)} added to your balance`
+            : `$${Number(tx.amount).toFixed(2)}`,
           createdAt: tx.created_at,
         });
       });

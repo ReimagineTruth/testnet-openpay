@@ -22,9 +22,32 @@ type PiAuthResult = {
 };
 
 type PiAdsApi = {
-  isAdReady?: (adType: "interstitial" | "rewarded") => Promise<boolean>;
-  requestAd?: (adType: "interstitial" | "rewarded") => Promise<void>;
-  showAd?: (adType: "interstitial" | "rewarded") => Promise<void>;
+  isAdReady?: (
+    adType: "interstitial" | "rewarded",
+  ) => Promise<{ type: "interstitial" | "rewarded"; ready: boolean }>;
+  requestAd?: (
+    adType: "interstitial" | "rewarded",
+  ) => Promise<{ type: "interstitial" | "rewarded"; result: "AD_LOADED" | "AD_FAILED_TO_LOAD" | "AD_NOT_AVAILABLE" | "ADS_NOT_SUPPORTED" }>;
+  showAd?: (
+    adType: "interstitial" | "rewarded",
+  ) => Promise<
+    | {
+        type: "interstitial";
+        result: "AD_CLOSED" | "AD_DISPLAY_ERROR" | "AD_NETWORK_ERROR" | "AD_NOT_AVAILABLE";
+      }
+    | {
+        type: "rewarded";
+        result:
+          | "AD_REWARDED"
+          | "AD_CLOSED"
+          | "AD_DISPLAY_ERROR"
+          | "AD_NETWORK_ERROR"
+          | "AD_NOT_AVAILABLE"
+          | "ADS_NOT_SUPPORTED"
+          | "USER_UNAUTHENTICATED";
+        adId?: string;
+      }
+  >;
 };
 
 type PiSdk = {
@@ -34,6 +57,7 @@ type PiSdk = {
     onIncompletePaymentFound?: (payment: { identifier: string; txid?: string }) => void,
   ) => Promise<PiAuthResult>;
   createPayment: (payment: PiPaymentData, callbacks: PiPaymentCallbacks) => void;
+  nativeFeaturesList?: () => Promise<Array<"inline_media" | "request_permission" | "ad_network">>;
   openShareDialog?: (title: string, message: string) => void;
   Ads?: PiAdsApi;
 };
