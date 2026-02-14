@@ -5,11 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 const TopUp = () => {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { currency } = useCurrency();
 
   const handleTopUp = async () => {
     if (!amount || parseFloat(amount) <= 0) {
@@ -26,7 +28,7 @@ const TopUp = () => {
     if (error || data?.error) {
       toast.error(data?.error || error?.message || "Top up failed");
     } else {
-      toast.success(`$${parseFloat(amount).toFixed(2)} added to your balance!`);
+      toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} added to your balance!`);
       navigate("/dashboard");
     }
   };
@@ -42,8 +44,8 @@ const TopUp = () => {
 
       <div className="px-4 mt-12">
         <div className="text-center mb-8">
-          <p className="text-5xl font-bold text-foreground">${amount || "0.00"}</p>
-          <p className="text-muted-foreground mt-2">Enter amount to add</p>
+          <p className="text-5xl font-bold text-foreground">{currency.symbol}{amount || "0.00"}</p>
+          <p className="text-muted-foreground mt-2">Enter amount to add · {currency.flag} {currency.code}</p>
         </div>
         <Input
           type="number"
@@ -59,7 +61,7 @@ const TopUp = () => {
           disabled={loading || !amount || parseFloat(amount) <= 0}
           className="w-full h-14 rounded-full bg-foreground text-background text-lg font-bold"
         >
-          {loading ? "Processing..." : `Add $${amount || "0.00"}`}
+          {loading ? "Processing..." : `Add ${currency.symbol}${amount || "0.00"}`}
         </Button>
       </div>
     </div>

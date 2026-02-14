@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Search, Info } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface UserProfile {
   id: string;
@@ -25,6 +26,7 @@ const SendMoney = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { format: formatCurrency, currency } = useCurrency();
 
   useEffect(() => {
     const load = async () => {
@@ -100,7 +102,7 @@ const SendMoney = () => {
     if (error || data?.error) {
       toast.error(data?.error || error?.message || "Transfer failed");
     } else {
-      toast.success(`$${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}!`);
+      toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}!`);
       navigate("/dashboard");
     }
   };
@@ -133,8 +135,9 @@ const SendMoney = () => {
         <div className="px-4 mt-8">
           <div className="text-center mb-8">
             <p className="text-5xl font-bold text-foreground">
-              ${amount || "0.00"}
+              {currency.symbol}{amount || "0.00"}
             </p>
+            <p className="text-sm text-muted-foreground mt-1">{currency.flag} {currency.code}</p>
           </div>
           <Input
             type="number"
@@ -156,7 +159,7 @@ const SendMoney = () => {
             disabled={loading || !amount || parseFloat(amount) <= 0}
             className="w-full h-14 rounded-full bg-foreground text-background text-lg font-bold"
           >
-            {loading ? "Sending..." : `Send $${amount || "0.00"}`}
+            {loading ? "Sending..." : `Send ${currency.symbol}${amount || "0.00"}`}
           </Button>
         </div>
       </div>
