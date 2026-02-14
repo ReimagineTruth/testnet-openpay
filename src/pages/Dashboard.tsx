@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import { Bell, Settings } from "lucide-react";
 import { format } from "date-fns";
+import CurrencySelector from "@/components/CurrencySelector";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Transaction {
   id: string;
@@ -22,6 +24,7 @@ const Dashboard = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { format: formatCurrency, currency } = useCurrency();
 
   useEffect(() => {
     const load = async () => {
@@ -66,13 +69,16 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
-      <div className="flex items-center justify-end px-4 pt-4 gap-3">
-        <button className="w-10 h-10 rounded-full bg-card flex items-center justify-center shadow-sm border border-border">
-          <Bell className="w-5 h-5 text-foreground" />
-        </button>
-        <button className="w-10 h-10 rounded-full bg-card flex items-center justify-center shadow-sm border border-border">
-          <Settings className="w-5 h-5 text-foreground" />
-        </button>
+      <div className="flex items-center justify-between px-4 pt-4">
+        <CurrencySelector />
+        <div className="flex gap-3">
+          <button className="w-10 h-10 rounded-full bg-card flex items-center justify-center shadow-sm border border-border">
+            <Bell className="w-5 h-5 text-foreground" />
+          </button>
+          <button className="w-10 h-10 rounded-full bg-card flex items-center justify-center shadow-sm border border-border">
+            <Settings className="w-5 h-5 text-foreground" />
+          </button>
+        </div>
       </div>
 
       {/* Balance Card */}
@@ -83,8 +89,8 @@ const Dashboard = () => {
             <path d="M40 25h20c10 0 17 7 17 17s-7 17-17 17H50v20H40V25z" fill="hsl(221 100% 27%)" />
           </svg>
           <div>
-            <p className="text-3xl font-bold text-foreground">${balance.toFixed(2)}</p>
-            <p className="text-sm text-muted-foreground">Balance</p>
+            <p className="text-3xl font-bold text-foreground">{formatCurrency(balance)}</p>
+            <p className="text-sm text-muted-foreground">Balance · {currency.code}</p>
           </div>
         </div>
       </div>
@@ -117,7 +123,7 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <p className={`font-semibold ${tx.is_sent ? "text-foreground" : "text-paypal-success"}`}>
-                  {tx.is_sent ? "-" : "+"}${tx.amount.toFixed(2)}
+                  {tx.is_sent ? "-" : "+"}{formatCurrency(tx.amount)}
                 </p>
               </div>
             ))}

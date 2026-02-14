@@ -13,11 +13,13 @@ import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
 import ActivityPage from "./pages/ActivityPage";
 import NotFound from "./pages/NotFound";
+import { CurrencyProvider } from "./contexts/CurrencyContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <CurrencyProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -36,6 +38,7 @@ const App = () => (
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
+    </CurrencyProvider>
   </QueryClientProvider>
 );
 
