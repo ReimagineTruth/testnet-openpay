@@ -39,6 +39,12 @@ export default {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
         },
+        paypal: {
+          blue: "hsl(var(--paypal-blue))",
+          "light-blue": "hsl(var(--paypal-light-blue))",
+          dark: "hsl(var(--paypal-dark))",
+          success: "hsl(var(--paypal-success))",
+        },
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
