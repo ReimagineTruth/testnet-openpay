@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import BrandLogo from "@/components/BrandLogo";
 
 const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -27,10 +28,8 @@ const SignIn = () => {
     <div className="min-h-screen bg-gradient-to-b from-paypal-blue to-[#072a7a] px-6 py-10">
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-sm flex-col justify-center">
         <div className="mb-8 text-center">
-          <svg viewBox="0 0 100 100" className="mx-auto mb-4 h-16 w-16">
-            <path d="M35 20h20c12 0 20 8 20 20s-8 20-20 20H45v20H35V20z" fill="#8FC9FF" />
-            <path d="M40 25h20c10 0 17 7 17 17s-7 17-17 17H50v20H40V25z" fill="white" />
-          </svg>
+          <BrandLogo className="mx-auto mb-4 h-16 w-16" />
+          <p className="mb-1 text-lg font-semibold text-white">OpenPay</p>
           <p className="text-sm font-medium text-white/85">Welcome back</p>
         </div>
         <div className="paypal-surface w-full rounded-3xl p-7 shadow-2xl shadow-black/15">

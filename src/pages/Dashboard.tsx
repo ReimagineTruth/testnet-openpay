@@ -6,6 +6,7 @@ import { Bell, Settings } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import BrandLogo from "@/components/BrandLogo";
 
 interface Transaction {
   id: string;
@@ -88,10 +89,7 @@ const Dashboard = () => {
 
       <div className="mx-4 mt-4 rounded-3xl border border-white/30 bg-gradient-to-br from-paypal-blue to-[#0073e6] p-6 shadow-xl shadow-[#004bba]/25">
         <div className="flex items-center gap-3 text-white">
-          <svg viewBox="0 0 100 100" className="h-8 w-8">
-            <path d="M35 20h20c12 0 20 8 20 20s-8 20-20 20H45v20H35V20z" fill="#8FC9FF" />
-            <path d="M40 25h20c10 0 17 7 17 17s-7 17-17 17H50v20H40V25z" fill="white" />
-          </svg>
+          <BrandLogo className="h-8 w-8" />
           <div>
             <p className="text-3xl font-bold">{formatCurrency(balance)}</p>
             <p className="text-sm text-white/85">Balance · {currency.code}</p>
