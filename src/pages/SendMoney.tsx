@@ -7,6 +7,7 @@ import { ArrowLeft, Search, Info } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 
 interface UserProfile {
   id: string;
@@ -26,7 +27,7 @@ const SendMoney = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { format: formatCurrency, currency } = useCurrency();
+  const { currency } = useCurrency();
 
   useEffect(() => {
     const load = async () => {
@@ -89,18 +90,13 @@ const SendMoney = () => {
     }
     setLoading(true);
 
-    // Get the user's email from profiles won't work, need to use edge function
-    const { data: { session } } = await supabase.auth.getSession();
-
-    // We need to find receiver email. Since we can't query auth.users from client,
-    // the edge function will need receiver_id instead. Let me update the approach.
-    const { data, error } = await supabase.functions.invoke("send-money", {
+    const { error } = await supabase.functions.invoke("send-money", {
       body: { receiver_email: "__by_id__", receiver_id: selectedUser.id, amount: parseFloat(amount), note },
     });
 
     setLoading(false);
-    if (error || data?.error) {
-      toast.error(data?.error || error?.message || "Transfer failed");
+    if (error) {
+      toast.error(await getFunctionErrorMessage(error, "Transfer failed"));
     } else {
       toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}!`);
       navigate("/dashboard");
@@ -112,17 +108,17 @@ const SendMoney = () => {
 
   if (step === "amount") {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="flex items-center gap-3 px-4 pt-4">
+      <div className="min-h-screen bg-background px-4 pt-4">
+        <div className="flex items-center gap-3">
           <button onClick={() => setStep("select")}>
             <ArrowLeft className="w-6 h-6 text-foreground" />
           </button>
-          <h1 className="text-lg font-semibold text-foreground">Send</h1>
+          <h1 className="text-lg font-semibold text-paypal-dark">Send Money</h1>
         </div>
 
         {selectedUser && (
-          <div className="flex items-center gap-3 px-4 mt-6">
-            <div className="w-12 h-12 rounded-full bg-paypal-dark flex items-center justify-center">
+          <div className="mt-6 flex items-center gap-3 rounded-2xl bg-secondary/80 px-3 py-2.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
               <span className="text-sm font-bold text-primary-foreground">{getInitials(selectedUser.full_name)}</span>
             </div>
             <div>
@@ -132,8 +128,8 @@ const SendMoney = () => {
           </div>
         )}
 
-        <div className="px-4 mt-8">
-          <div className="text-center mb-8">
+        <div className="paypal-surface mt-8 rounded-3xl p-6">
+          <div className="mb-8 text-center">
             <p className="text-5xl font-bold text-foreground">
               {currency.symbol}{amount || "0.00"}
             </p>
@@ -144,7 +140,7 @@ const SendMoney = () => {
             placeholder="0.00"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="h-14 rounded-xl text-center text-2xl mb-4"
+            className="mb-4 h-14 rounded-2xl border-white/70 bg-white text-center text-2xl"
             min="0.01"
             step="0.01"
           />
@@ -152,12 +148,12 @@ const SendMoney = () => {
             placeholder="Add a note (optional)"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="h-12 rounded-xl mb-6"
+            className="mb-6 h-12 rounded-2xl border-white/70 bg-white"
           />
           <Button
             onClick={handleSend}
             disabled={loading || !amount || parseFloat(amount) <= 0}
-            className="w-full h-14 rounded-full bg-foreground text-background text-lg font-bold"
+            className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
           >
             {loading ? "Sending..." : `Send ${currency.symbol}${amount || "0.00"}`}
           </Button>
@@ -167,8 +163,8 @@ const SendMoney = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex items-center gap-3 px-4 pt-4">
+    <div className="min-h-screen bg-background px-4 pt-4">
+      <div className="flex items-center gap-3">
         <button onClick={() => navigate("/dashboard")}>
           <ArrowLeft className="w-6 h-6 text-foreground" />
         </button>
@@ -177,20 +173,20 @@ const SendMoney = () => {
             placeholder="Name, username or email"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-12 rounded-full bg-secondary border-2 border-paypal-light-blue"
+            className="h-12 rounded-full border border-white/70 bg-white pl-4"
             autoFocus
           />
         </div>
       </div>
 
-      <div className="px-4 mt-6">
-        <h2 className="font-bold text-foreground mb-4">{searchQuery ? "Search results" : "Your contacts"}</h2>
-        <div className="space-y-1">
+      <div className="mt-6">
+        <h2 className="mb-4 font-bold text-foreground">{searchQuery ? "Search results" : "Your contacts"}</h2>
+        <div className="paypal-surface overflow-hidden rounded-2xl">
           {filtered.map((user, i) => (
             <button
               key={user.id}
               onClick={() => handleSelectUser(user)}
-              className="w-full flex items-center gap-3 py-3 px-2 hover:bg-muted rounded-xl transition"
+              className="flex w-full items-center gap-3 border-b border-border/70 px-3 py-3 text-left last:border-b-0 hover:bg-secondary/50 transition"
             >
               <div className={`w-12 h-12 rounded-full ${colors[i % colors.length]} flex items-center justify-center`}>
                 <span className="text-sm font-bold text-primary-foreground">{getInitials(user.full_name)}</span>
@@ -210,7 +206,7 @@ const SendMoney = () => {
 
       {/* Confirm User Sheet */}
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-        <DialogContent className="rounded-t-2xl">
+        <DialogContent className="rounded-3xl">
           {selectedUser && (
             <div>
               <div className="w-16 h-16 rounded-full bg-paypal-dark flex items-center justify-center mb-3">
@@ -219,7 +215,7 @@ const SendMoney = () => {
               <h3 className="text-xl font-bold">{selectedUser.full_name}</h3>
               {selectedUser.username && <p className="text-muted-foreground">@{selectedUser.username}</p>}
               <p className="text-2xl font-bold mt-4 mb-2">Is this the right person?</p>
-              <Button onClick={handleConfirmUser} className="w-full h-14 rounded-full bg-foreground text-background text-lg font-bold mt-4">
+              <Button onClick={handleConfirmUser} className="mt-4 h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]">
                 Continue
               </Button>
             </div>

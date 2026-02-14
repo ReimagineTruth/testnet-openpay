@@ -15,20 +15,22 @@ const BottomNav = ({ active }: BottomNavProps) => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
-      <div className="flex items-center justify-around py-2">
+    <div className="fixed bottom-3 left-0 right-0 z-30 px-4">
+      <div className="mx-auto max-w-md paypal-surface rounded-2xl">
+        <div className="flex items-center justify-around py-2">
         {items.map(({ key, label, icon: Icon, path }) => (
           <button
             key={key}
             onClick={() => navigate(path)}
-            className={`flex flex-col items-center gap-1 px-6 py-1 ${
-              active === key ? "text-foreground" : "text-muted-foreground"
+            className={`flex min-w-20 flex-col items-center gap-1 rounded-xl px-4 py-2 transition ${
+              active === key ? "bg-secondary text-paypal-blue" : "text-muted-foreground hover:bg-secondary/50"
             }`}
           >
             <Icon className="w-6 h-6" />
-            <span className={`text-xs ${active === key ? "font-bold" : ""}`}>{label}</span>
+            <span className={`text-xs ${active === key ? "font-bold" : "font-medium"}`}>{label}</span>
           </button>
         ))}
+        </div>
       </div>
     </div>
   );

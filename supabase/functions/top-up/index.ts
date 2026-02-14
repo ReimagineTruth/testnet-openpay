@@ -11,39 +11,45 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    if (!supabaseUrl || !supabaseServiceKey) throw new Error("Server configuration error");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const authHeader = req.headers.get("Authorization")!;
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) throw new Error("Missing auth token");
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) throw new Error("Unauthorized");
 
     const { amount } = await req.json();
-    if (!amount || amount <= 0) throw new Error("Invalid amount");
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error("Invalid amount");
 
-    const { data: wallet } = await supabase
+    const { data: wallet, error: walletError } = await supabase
       .from("wallets")
       .select("*")
       .eq("user_id", user.id)
       .single();
+    if (walletError) throw walletError;
 
     const { error } = await supabase
       .from("wallets")
-      .update({ balance: (wallet?.balance || 0) + amount, updated_at: new Date().toISOString() })
+      .update({ balance: (wallet?.balance || 0) + parsedAmount, updated_at: new Date().toISOString() })
       .eq("user_id", user.id);
 
     if (error) throw error;
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unexpected error";
+    return jsonResponse({ error: message }, 400);
   }
 });

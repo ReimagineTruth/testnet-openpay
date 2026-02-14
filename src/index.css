@@ -4,40 +4,40 @@
 
 @layer base {
   :root {
-    --background: 0 0% 97%;
-    --foreground: 220 20% 10%;
+    --background: 212 63% 97%;
+    --foreground: 218 48% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card-foreground: 218 48% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 218 48% 15%;
 
-    --primary: 221 100% 27%;
+    --primary: 220 89% 35%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 100% 96%;
-    --secondary-foreground: 221 100% 27%;
+    --secondary: 210 100% 96%;
+    --secondary-foreground: 220 89% 35%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 210 40% 95%;
+    --muted-foreground: 215 16% 44%;
 
-    --accent: 214 100% 96%;
-    --accent-foreground: 221 100% 27%;
+    --accent: 210 100% 96%;
+    --accent-foreground: 220 89% 35%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 221 100% 27%;
+    --border: 214 38% 89%;
+    --input: 214 38% 89%;
+    --ring: 220 89% 35%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    --paypal-blue: 221 100% 27%;
-    --paypal-light-blue: 210 100% 52%;
-    --paypal-dark: 220 20% 10%;
-    --paypal-success: 152 69% 41%;
+    --paypal-blue: 220 89% 35%;
+    --paypal-light-blue: 200 100% 47%;
+    --paypal-dark: 218 49% 12%;
+    --paypal-success: 153 70% 37%;
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -56,6 +56,22 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-family: "Avenir Next", "Segoe UI", Arial, sans-serif;
+    background-image: radial-gradient(circle at 20% -10%, hsl(201 100% 92%) 0%, hsl(212 63% 97%) 35%);
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .paypal-surface {
+    @apply bg-card/95 backdrop-blur-sm border border-white/60 shadow-sm;
+  }
+
+  .paypal-pill {
+    @apply rounded-full px-5 py-3 font-semibold;
+  }
+
+  .paypal-heading {
+    @apply text-2xl font-bold tracking-tight text-paypal-dark;
   }
 }

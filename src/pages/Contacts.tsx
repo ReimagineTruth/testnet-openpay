@@ -96,33 +96,33 @@ const Contacts = () => {
   const colors = ["bg-paypal-dark", "bg-paypal-light-blue", "bg-primary", "bg-muted-foreground"];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24">
       <div className="px-4 pt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-3xl font-bold text-foreground">Contacts</h1>
-          <button onClick={() => setShowAdd(true)} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="paypal-heading">Contacts</h1>
+          <button onClick={() => setShowAdd(true)} className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
             <UserPlus className="w-5 h-5 text-paypal-light-blue" />
           </button>
         </div>
 
-        <div className="flex items-center gap-2 mb-6">
+        <div className="mb-6 flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Name, username, email"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 h-12 rounded-xl bg-card"
+              className="h-12 rounded-2xl border-white/70 bg-white pl-10"
             />
           </div>
         </div>
 
-        <div className="space-y-1">
+        <div className="paypal-surface overflow-hidden rounded-2xl">
           {filtered.map((contact, i) => (
             <button
               key={contact.id}
               onClick={() => setSelectedContact(contact)}
-              className="w-full flex items-center gap-3 py-4 px-2 hover:bg-muted rounded-xl transition"
+              className="flex w-full items-center gap-3 border-b border-border/70 px-3 py-4 text-left transition hover:bg-secondary/50 last:border-b-0"
             >
               <div className={`w-12 h-12 rounded-full ${colors[i % colors.length]} flex items-center justify-center`}>
                 <span className="text-sm font-bold text-primary-foreground">{getInitials(contact.full_name)}</span>
@@ -142,21 +142,21 @@ const Contacts = () => {
 
       {/* Add Contact Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-3xl">
           <h2 className="text-xl font-bold mb-4">Add Contact</h2>
           <Input
             placeholder="Enter username"
             value={addEmail}
             onChange={(e) => setAddEmail(e.target.value)}
-            className="h-12 rounded-xl mb-4"
+            className="mb-4 h-12 rounded-2xl border-white/70 bg-white"
           />
-          <Button onClick={handleAddContact} className="w-full h-12 rounded-xl">Add</Button>
+          <Button onClick={handleAddContact} className="h-12 w-full rounded-2xl bg-paypal-blue font-semibold text-white hover:bg-[#004dc5]">Add</Button>
         </DialogContent>
       </Dialog>
 
       {/* Contact Detail Sheet */}
       <Dialog open={!!selectedContact} onOpenChange={() => setSelectedContact(null)}>
-        <DialogContent className="rounded-t-2xl">
+        <DialogContent className="rounded-3xl">
           {selectedContact && (
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-paypal-dark mx-auto flex items-center justify-center mb-3">
@@ -166,7 +166,7 @@ const Contacts = () => {
               {selectedContact.username && <p className="text-muted-foreground">@{selectedContact.username}</p>}
               <Button
                 onClick={() => { setSelectedContact(null); navigate(`/send?to=${selectedContact.contact_id}`); }}
-                className="w-full h-12 rounded-xl mt-6"
+                className="mt-6 h-12 w-full rounded-2xl bg-paypal-blue font-semibold text-white hover:bg-[#004dc5]"
               >
                 Send Money
               </Button>

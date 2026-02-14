@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 
 const TopUp = () => {
   const [amount, setAmount] = useState("");
@@ -20,13 +21,13 @@ const TopUp = () => {
     }
     setLoading(true);
 
-    const { data, error } = await supabase.functions.invoke("top-up", {
+    const { error } = await supabase.functions.invoke("top-up", {
       body: { amount: parseFloat(amount) },
     });
 
     setLoading(false);
-    if (error || data?.error) {
-      toast.error(data?.error || error?.message || "Top up failed");
+    if (error) {
+      toast.error(await getFunctionErrorMessage(error, "Top up failed"));
     } else {
       toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} added to your balance!`);
       navigate("/dashboard");
@@ -34,32 +35,37 @@ const TopUp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex items-center gap-3 px-4 pt-4">
+    <div className="min-h-screen bg-background px-4 pt-4">
+      <div className="flex items-center gap-3">
         <button onClick={() => navigate("/dashboard")}>
-          <ArrowLeft className="w-6 h-6 text-foreground" />
+          <ArrowLeft className="h-6 w-6 text-foreground" />
         </button>
-        <h1 className="text-lg font-semibold text-foreground">Top Up</h1>
+        <h1 className="text-lg font-semibold text-paypal-dark">Top Up</h1>
       </div>
 
-      <div className="px-4 mt-12">
-        <div className="text-center mb-8">
-          <p className="text-5xl font-bold text-foreground">{currency.symbol}{amount || "0.00"}</p>
-          <p className="text-muted-foreground mt-2">Enter amount to add · {currency.flag} {currency.code}</p>
+      <div className="paypal-surface mt-10 rounded-3xl p-6">
+        <div className="mb-8 text-center">
+          <p className="text-5xl font-bold text-foreground">
+            {currency.symbol}
+            {amount || "0.00"}
+          </p>
+          <p className="mt-2 text-muted-foreground">
+            Enter amount to add · {currency.flag} {currency.code}
+          </p>
         </div>
         <Input
           type="number"
           placeholder="0.00"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="h-14 rounded-xl text-center text-2xl mb-6"
+          className="mb-6 h-14 rounded-2xl border-white/70 bg-white text-center text-2xl"
           min="0.01"
           step="0.01"
         />
         <Button
           onClick={handleTopUp}
           disabled={loading || !amount || parseFloat(amount) <= 0}
-          className="w-full h-14 rounded-full bg-foreground text-background text-lg font-bold"
+          className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
         >
           {loading ? "Processing..." : `Add ${currency.symbol}${amount || "0.00"}`}
         </Button>

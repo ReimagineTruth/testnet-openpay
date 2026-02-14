@@ -12,6 +12,9 @@ import TopUp from "./pages/TopUp";
 import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
 import ActivityPage from "./pages/ActivityPage";
+import RequestMoney from "./pages/RequestMoney";
+import SendInvoice from "./pages/SendInvoice";
+import HelpCenter from "./pages/HelpCenter";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 
@@ -34,6 +37,9 @@ const App = () => (
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/activity" element={<ActivityPage />} />
+          <Route path="/request-money" element={<RequestMoney />} />
+          <Route path="/send-invoice" element={<SendInvoice />} />
+          <Route path="/help-center" element={<HelpCenter />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -22,15 +22,18 @@ interface Transaction {
 const Dashboard = () => {
   const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/signin"); return; }
-      setUserId(user.id);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        navigate("/signin");
+        return;
+      }
 
       const { data: wallet } = await supabase
         .from("wallets")
@@ -47,73 +50,78 @@ const Dashboard = () => {
         .limit(10);
 
       if (txs) {
-        const enriched = await Promise.all(txs.map(async (tx) => {
-          const otherId = tx.sender_id === user.id ? tx.receiver_id : tx.sender_id;
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", otherId)
-            .single();
-          return {
-            ...tx,
-            other_name: profile?.full_name || "Unknown",
-            is_sent: tx.sender_id === user.id,
-          };
-        }));
+        const enriched = await Promise.all(
+          txs.map(async (tx) => {
+            const otherId = tx.sender_id === user.id ? tx.receiver_id : tx.sender_id;
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", otherId)
+              .single();
+            return {
+              ...tx,
+              other_name: profile?.full_name || "Unknown",
+              is_sent: tx.sender_id === user.id,
+            };
+          }),
+        );
         setTransactions(enriched);
       }
     };
+
     load();
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4">
+    <div className="min-h-screen bg-background pb-28">
+      <div className="flex items-center justify-between px-4 pt-5">
         <CurrencySelector />
         <div className="flex gap-3">
-          <button className="w-10 h-10 rounded-full bg-card flex items-center justify-center shadow-sm border border-border">
-            <Bell className="w-5 h-5 text-foreground" />
+          <button className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
+            <Bell className="h-5 w-5 text-foreground" />
           </button>
-          <button className="w-10 h-10 rounded-full bg-card flex items-center justify-center shadow-sm border border-border">
-            <Settings className="w-5 h-5 text-foreground" />
+          <button className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
+            <Settings className="h-5 w-5 text-foreground" />
           </button>
         </div>
       </div>
 
-      {/* Balance Card */}
-      <div className="mx-4 mt-4 bg-card rounded-2xl p-5 shadow-sm border border-border">
-        <div className="flex items-center gap-3">
-          <svg viewBox="0 0 100 100" className="w-8 h-8">
-            <path d="M35 20h20c12 0 20 8 20 20s-8 20-20 20H45v20H35V20z" fill="hsl(221 100% 27%)" opacity="0.5" />
-            <path d="M40 25h20c10 0 17 7 17 17s-7 17-17 17H50v20H40V25z" fill="hsl(221 100% 27%)" />
+      <div className="mx-4 mt-4 rounded-3xl border border-white/30 bg-gradient-to-br from-paypal-blue to-[#0073e6] p-6 shadow-xl shadow-[#004bba]/25">
+        <div className="flex items-center gap-3 text-white">
+          <svg viewBox="0 0 100 100" className="h-8 w-8">
+            <path d="M35 20h20c12 0 20 8 20 20s-8 20-20 20H45v20H35V20z" fill="#8FC9FF" />
+            <path d="M40 25h20c10 0 17 7 17 17s-7 17-17 17H50v20H40V25z" fill="white" />
           </svg>
           <div>
-            <p className="text-3xl font-bold text-foreground">{formatCurrency(balance)}</p>
-            <p className="text-sm text-muted-foreground">Balance · {currency.code}</p>
+            <p className="text-3xl font-bold">{formatCurrency(balance)}</p>
+            <p className="text-sm text-white/85">Balance · {currency.code}</p>
           </div>
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="px-4 mt-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">Recent activity</h2>
-          <button onClick={() => navigate("/activity")} className="text-sm text-muted-foreground flex items-center gap-1">
+      <div className="mt-6 px-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-paypal-dark">Recent activity</h2>
+          <button onClick={() => navigate("/activity")} className="text-sm font-semibold text-paypal-blue">
             See more →
           </button>
         </div>
 
         {transactions.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">No transactions yet</p>
+          <p className="py-8 text-center text-muted-foreground">No transactions yet</p>
         ) : (
-          <div className="bg-card rounded-2xl shadow-sm border border-border divide-y divide-border">
+          <div className="paypal-surface divide-y divide-border/70 rounded-3xl">
             {transactions.map((tx) => (
               <div key={tx.id} className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center border-2 border-paypal-light-blue">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-paypal-light-blue/50 bg-secondary">
                     <span className="text-xs font-bold text-secondary-foreground">
-                      {tx.other_name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                      {tx.other_name
+                        ?.split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()}
                     </span>
                   </div>
                   <div>
@@ -123,7 +131,8 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <p className={`font-semibold ${tx.is_sent ? "text-foreground" : "text-paypal-success"}`}>
-                  {tx.is_sent ? "-" : "+"}{formatCurrency(tx.amount)}
+                  {tx.is_sent ? "-" : "+"}
+                  {formatCurrency(tx.amount)}
                 </p>
               </div>
             ))}
@@ -131,18 +140,17 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="fixed bottom-20 left-0 right-0 px-4 pb-2">
+      <div className="fixed bottom-24 left-0 right-0 px-4 pb-1">
         <div className="flex gap-3">
           <button
             onClick={() => navigate("/send")}
-            className="flex-1 bg-foreground text-background font-bold py-4 rounded-full text-center"
+            className="flex-1 rounded-full bg-paypal-blue py-3.5 text-center font-semibold text-white shadow-lg shadow-[#0057d8]/30"
           >
             Pay
           </button>
           <button
             onClick={() => navigate("/topup")}
-            className="flex-1 bg-foreground text-background font-bold py-4 rounded-full text-center"
+            className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue"
           >
             Top Up
           </button>
