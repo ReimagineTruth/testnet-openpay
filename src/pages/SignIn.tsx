@@ -59,6 +59,12 @@ const SignIn = () => {
             Don't have an account?{" "}
             <Link to="/signup" className="text-paypal-blue font-semibold">Sign Up</Link>
           </p>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            By continuing, you agree to our{" "}
+            <Link to="/terms" className="text-paypal-blue font-medium">Terms</Link>
+            {" "}and{" "}
+            <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
+          </p>
         </div>
       </div>
     </div>

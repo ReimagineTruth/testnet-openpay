@@ -17,7 +17,7 @@ const MenuPage = () => {
     {
       title: "Send and pay",
       items: [
-        { icon: Send, label: "Send Money", action: () => navigate("/send") },
+        { icon: Send, label: "Express Send", action: () => navigate("/send") },
         { icon: ArrowLeftRight, label: "Transfer balance", action: () => navigate("/topup") },
       ],
     },

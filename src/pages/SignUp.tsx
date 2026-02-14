@@ -89,6 +89,12 @@ const SignUp = () => {
             Already have an account?{" "}
             <Link to="/signin" className="text-paypal-blue font-semibold">Log In</Link>
           </p>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            By creating an account, you agree to our{" "}
+            <Link to="/terms" className="text-paypal-blue font-medium">Terms</Link>
+            {" "}and{" "}
+            <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
+          </p>
         </div>
       </div>
     </div>

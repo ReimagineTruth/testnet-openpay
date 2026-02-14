@@ -168,7 +168,7 @@ const Contacts = () => {
                 onClick={() => { setSelectedContact(null); navigate(`/send?to=${selectedContact.contact_id}`); }}
                 className="mt-6 h-12 w-full rounded-2xl bg-paypal-blue font-semibold text-white hover:bg-[#004dc5]"
               >
-                Send Money
+                Express Send
               </Button>
             </div>
           )}

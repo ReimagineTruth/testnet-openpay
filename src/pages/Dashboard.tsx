@@ -78,10 +78,18 @@ const Dashboard = () => {
       <div className="flex items-center justify-between px-4 pt-5">
         <CurrencySelector />
         <div className="flex gap-3">
-          <button className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
+          <button
+            onClick={() => navigate("/notifications")}
+            aria-label="Open notifications"
+            className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
+          >
             <Bell className="h-5 w-5 text-foreground" />
           </button>
-          <button className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
+          <button
+            onClick={() => navigate("/settings")}
+            aria-label="Open settings"
+            className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
+          >
             <Settings className="h-5 w-5 text-foreground" />
           </button>
         </div>

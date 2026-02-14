@@ -15,6 +15,11 @@ import ActivityPage from "./pages/ActivityPage";
 import RequestMoney from "./pages/RequestMoney";
 import SendInvoice from "./pages/SendInvoice";
 import HelpCenter from "./pages/HelpCenter";
+import NotificationsPage from "./pages/NotificationsPage";
+import SettingsPage from "./pages/SettingsPage";
+import ProfilePage from "./pages/ProfilePage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 
@@ -40,6 +45,11 @@ const App = () => (
           <Route path="/request-money" element={<RequestMoney />} />
           <Route path="/send-invoice" element={<SendInvoice />} />
           <Route path="/help-center" element={<HelpCenter />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

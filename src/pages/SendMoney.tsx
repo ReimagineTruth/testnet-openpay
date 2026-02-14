@@ -20,6 +20,7 @@ const SendMoney = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [contacts, setContacts] = useState<UserProfile[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [balance, setBalance] = useState(0);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -27,12 +28,19 @@ const SendMoney = () => {
   const [showConfirm, setShowConfirm] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currency } = useCurrency();
+  const { currency, format: formatCurrency } = useCurrency();
 
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/signin"); return; }
+
+      const { data: wallet } = await supabase
+        .from("wallets")
+        .select("balance")
+        .eq("user_id", user.id)
+        .single();
+      setBalance(wallet?.balance || 0);
 
       // Load contacts
       const { data: contactRows } = await supabase
@@ -84,14 +92,19 @@ const SendMoney = () => {
   };
 
   const handleSend = async () => {
-    if (!selectedUser || !amount || parseFloat(amount) <= 0) {
+    const parsedAmount = parseFloat(amount);
+    if (!selectedUser || !amount || parsedAmount <= 0) {
       toast.error("Enter a valid amount");
+      return;
+    }
+    if (parsedAmount > balance) {
+      toast.error("Amount exceeds your available balance");
       return;
     }
     setLoading(true);
 
     const { error } = await supabase.functions.invoke("send-money", {
-      body: { receiver_email: "__by_id__", receiver_id: selectedUser.id, amount: parseFloat(amount), note },
+      body: { receiver_email: "__by_id__", receiver_id: selectedUser.id, amount: parsedAmount, note },
     });
 
     setLoading(false);
@@ -113,7 +126,7 @@ const SendMoney = () => {
           <button onClick={() => setStep("select")}>
             <ArrowLeft className="w-6 h-6 text-foreground" />
           </button>
-          <h1 className="text-lg font-semibold text-paypal-dark">Send Money</h1>
+          <h1 className="text-lg font-semibold text-paypal-dark">Express Send</h1>
         </div>
 
         {selectedUser && (
@@ -134,6 +147,7 @@ const SendMoney = () => {
               {currency.symbol}{amount || "0.00"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">{currency.flag} {currency.code}</p>
+            <p className="mt-2 text-sm font-medium text-paypal-blue">Available: {formatCurrency(balance)}</p>
           </div>
           <Input
             type="number"
