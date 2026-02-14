@@ -12,6 +12,9 @@ const SettingsPage = () => {
   const [username, setUsername] = useState("");
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -67,6 +70,17 @@ const SettingsPage = () => {
     navigate("/signin");
   };
 
+  const handleEnableNotifications = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      toast.error("Notifications are not supported on this device");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+    if (permission === "granted") toast.success("Device notifications enabled");
+    else toast.error("Notification permission not granted");
+  };
+
   return (
     <div className="min-h-screen bg-background px-4 pt-4">
       <div className="mb-5 flex items-center gap-3">
@@ -82,6 +96,12 @@ const SettingsPage = () => {
           className="mb-4 w-full rounded-2xl border border-border/70 bg-secondary/60 px-3 py-3 text-left font-semibold text-paypal-blue hover:bg-secondary"
         >
           Open Profile
+        </button>
+        <button
+          onClick={handleEnableNotifications}
+          className="mb-4 w-full rounded-2xl border border-border/70 bg-secondary/60 px-3 py-3 text-left font-semibold text-paypal-blue hover:bg-secondary"
+        >
+          {notificationPermission === "granted" ? "Device notifications enabled" : "Enable device notifications"}
         </button>
         <div className="space-y-3">
           <div>

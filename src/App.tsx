@@ -22,40 +22,45 @@ import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
+import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <CurrencyProvider>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/signin" element={<SignIn />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/send" element={<SendMoney />} />
-          <Route path="/topup" element={<TopUp />} />
-          <Route path="/contacts" element={<Contacts />} />
-          <Route path="/menu" element={<MenuPage />} />
-          <Route path="/activity" element={<ActivityPage />} />
-          <Route path="/request-money" element={<RequestMoney />} />
-          <Route path="/send-invoice" element={<SendInvoice />} />
-          <Route path="/help-center" element={<HelpCenter />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-    </CurrencyProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useRealtimePushNotifications();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <CurrencyProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/signin" element={<SignIn />} />
+              <Route path="/signup" element={<SignUp />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/send" element={<SendMoney />} />
+              <Route path="/topup" element={<TopUp />} />
+              <Route path="/contacts" element={<Contacts />} />
+              <Route path="/menu" element={<MenuPage />} />
+              <Route path="/activity" element={<ActivityPage />} />
+              <Route path="/request-money" element={<RequestMoney />} />
+              <Route path="/send-invoice" element={<SendInvoice />} />
+              <Route path="/help-center" element={<HelpCenter />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </CurrencyProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
