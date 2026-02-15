@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
@@ -102,7 +102,7 @@ const Dashboard = () => {
           <BrandLogo className="h-8 w-8" />
           <div>
             <p className="text-3xl font-bold">{formatCurrency(balance)}</p>
-            <p className="text-sm text-white/85">Balance · {currency.code}</p>
+            <p className="text-sm text-white/85">Balance · {currency.code === "PI" ? "PI" : `PI ${currency.code}`}</p>
           </div>
         </div>
       </div>
@@ -111,7 +111,7 @@ const Dashboard = () => {
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-paypal-dark">Recent activity</h2>
           <button onClick={() => navigate("/activity")} className="text-sm font-semibold text-paypal-blue">
-            See more →
+            See more â†’
           </button>
         </div>
 
@@ -174,3 +174,6 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+

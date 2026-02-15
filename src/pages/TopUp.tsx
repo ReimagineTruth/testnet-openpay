@@ -5,14 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { currencies } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 
 const TopUp = () => {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { currency } = useCurrency();
+  const usdCurrency = currencies.find((c) => c.code === "USD") ?? currencies[0];
   const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
 
   const initPi = () => {
@@ -127,7 +127,7 @@ const TopUp = () => {
         );
       });
 
-      toast.success(`${currency.symbol}${parsedAmount.toFixed(2)} added to your balance!`);
+      toast.success(`${usdCurrency.symbol}${parsedAmount.toFixed(2)} added to your balance!`);
       navigate("/dashboard");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Top up failed");
@@ -148,11 +148,11 @@ const TopUp = () => {
       <div className="paypal-surface mt-10 rounded-3xl p-6">
         <div className="mb-8 text-center">
           <p className="text-5xl font-bold text-foreground">
-            {currency.symbol}
+            {usdCurrency.symbol}
             {amount || "0.00"}
           </p>
           <p className="mt-2 text-muted-foreground">
-            Enter amount to add · {currency.flag} {currency.code}
+            Enter amount to add · {usdCurrency.flag} {usdCurrency.code}
           </p>
         </div>
         <Input
@@ -164,12 +164,15 @@ const TopUp = () => {
           min="0.01"
           step="0.01"
         />
+        <p className="mb-4 text-center text-xs text-muted-foreground">
+          OpenPay uses a stable in-app value: 1 Pi = 1 USD.
+        </p>
         <Button
           onClick={handleTopUp}
           disabled={loading || !amount || Number(amount) <= 0}
           className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
         >
-          {loading ? "Processing Pi payment..." : `Pay with Pi and add ${currency.symbol}${amount || "0.00"}`}
+          {loading ? "Processing Pi payment..." : `Pay with Pi and add ${usdCurrency.symbol}${amount || "0.00"}`}
         </Button>
       </div>
     </div>

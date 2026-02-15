@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { currencies, useCurrency } from "@/contexts/CurrencyContext";
 import { ChevronDown, Search } from "lucide-react";
 import {
@@ -15,11 +15,16 @@ const CurrencySelector = () => {
   const { currency, setCurrency } = useCurrency();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+  const getPiNameLabel = (code: string, name: string) => (code === "PI" ? "Pure Pi" : `PI ${name}`);
+  const getDisplaySymbol = (code: string, symbol: string) => (code === "PI" ? "π" : symbol);
 
   const filtered = currencies.filter(
     (c) =>
       c.code.toLowerCase().includes(search.toLowerCase()) ||
-      c.name.toLowerCase().includes(search.toLowerCase())
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      `pi ${c.code}`.toLowerCase().includes(search.toLowerCase()) ||
+      `pi ${c.name}`.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -27,7 +32,7 @@ const CurrencySelector = () => {
       <DialogTrigger asChild>
         <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-sm font-medium border border-border hover:bg-accent transition-colors">
           <span className="text-lg leading-none">{currency.flag}</span>
-          <span>{currency.code}</span>
+          <span>{getPiCodeLabel(currency.code)}</span>
           <ChevronDown className="w-3.5 h-3.5 opacity-60" />
         </button>
       </DialogTrigger>
@@ -64,10 +69,10 @@ const CurrencySelector = () => {
               >
                 <span className="text-2xl leading-none">{c.flag}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">{c.code}</p>
-                  <p className="text-xs text-muted-foreground truncate">{c.name}</p>
+                  <p className="font-semibold text-sm">{getPiCodeLabel(c.code)}</p>
+                  <p className="text-xs text-muted-foreground truncate">{getPiNameLabel(c.code, c.name)}</p>
                 </div>
-                <span className="text-xs text-muted-foreground font-medium">{c.symbol}</span>
+                <span className="text-xs text-muted-foreground font-medium">{getDisplaySymbol(c.code, c.symbol)}</span>
               </button>
             ))}
             {filtered.length === 0 && (
@@ -81,3 +86,4 @@ const CurrencySelector = () => {
 };
 
 export default CurrencySelector;
+
