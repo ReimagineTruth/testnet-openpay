@@ -29,17 +29,12 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Missing auth token" }, 401);
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !user) return jsonResponse({ error: "Unauthorized" }, 401);
-
     const { action, paymentId, txid, accessToken, adId } = await req.json();
     if (!action || typeof action !== "string") {
       return jsonResponse({ error: "Missing action" }, 400);
     }
 
+    // auth_verify does NOT require a Supabase session — the user is logging in
     if (action === "auth_verify") {
       if (!accessToken || typeof accessToken !== "string") {
         return jsonResponse({ error: "Missing accessToken" }, 400);
@@ -54,6 +49,7 @@ serve(async (req) => {
 
       const data = parseJson(await piResponse.text());
       if (!piResponse.ok) {
+        console.error("Pi auth_verify failed", piResponse.status, data);
         return jsonResponse({ error: "Pi auth verification failed", status: piResponse.status, data }, 400);
       }
 
@@ -68,6 +64,13 @@ serve(async (req) => {
         data: { uid, username },
       });
     }
+
+    // All other actions require a valid Supabase session
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Missing auth token" }, 401);
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !user) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const apiKey = Deno.env.get("PI_API_KEY");
     if (!apiKey) return jsonResponse({ error: "PI_API_KEY is not configured" }, 500);
