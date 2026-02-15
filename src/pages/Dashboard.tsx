@@ -138,9 +138,10 @@ const Dashboard = () => {
                     <p className="text-xs text-muted-foreground">
                       {tx.is_topup ? "Top up" : tx.is_sent ? "Payment" : "Received"}
                     </p>
+                    {tx.note && <p className="text-xs text-muted-foreground">{tx.note}</p>}
                   </div>
                 </div>
-                <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-foreground" : "text-paypal-success"}`}>
+                <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-red-500" : "text-paypal-success"}`}>
                   {tx.is_topup ? "+" : tx.is_sent ? "-" : "+"}
                   {formatCurrency(tx.amount)}
                 </p>

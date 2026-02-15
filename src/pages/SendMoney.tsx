@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
+import CurrencySelector from "@/components/CurrencySelector";
 
 interface UserProfile {
   id: string;
@@ -97,21 +98,27 @@ const SendMoney = () => {
       toast.error("Enter a valid amount");
       return;
     }
-    if (parsedAmount > balance) {
+    const usdAmount = parsedAmount / currency.rate;
+    if (usdAmount > balance) {
       toast.error("Amount exceeds your available balance");
       return;
     }
     setLoading(true);
 
-    const { error } = await supabase.functions.invoke("send-money", {
-      body: { receiver_email: "__by_id__", receiver_id: selectedUser.id, amount: parsedAmount, note },
+    const { data, error } = await supabase.functions.invoke("send-money", {
+      body: { receiver_email: "__by_id__", receiver_id: selectedUser.id, amount: usdAmount, note },
     });
 
     setLoading(false);
     if (error) {
       toast.error(await getFunctionErrorMessage(error, "Transfer failed"));
     } else {
-      toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}!`);
+      const transactionId = (data as { transaction_id?: string } | null)?.transaction_id;
+      toast.success(
+        `${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}${
+          transactionId ? ` (TX: ${transactionId})` : ""
+        }!`,
+      );
       navigate("/dashboard");
     }
   };
@@ -122,11 +129,14 @@ const SendMoney = () => {
   if (step === "amount") {
     return (
       <div className="min-h-screen bg-background px-4 pt-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
           <button onClick={() => setStep("select")}>
             <ArrowLeft className="w-6 h-6 text-foreground" />
           </button>
           <h1 className="text-lg font-semibold text-paypal-dark">Express Send</h1>
+          </div>
+          <CurrencySelector />
         </div>
 
         {selectedUser && (

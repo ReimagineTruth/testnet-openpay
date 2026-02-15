@@ -47,52 +47,15 @@ serve(async (req) => {
     if (!receiverId) throw new Error("No recipient specified");
     if (receiverId === user.id) throw new Error("Cannot send to yourself");
 
-    // Check sender balance
-    const { data: senderWallet, error: senderWalletError } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("user_id", user.id)
-      .single();
-    if (senderWalletError) throw senderWalletError;
+    const { data: transactionId, error: transferError } = await supabase.rpc("transfer_funds", {
+      p_sender_id: user.id,
+      p_receiver_id: receiverId,
+      p_amount: parsedAmount,
+      p_note: note || "",
+    });
+    if (transferError) throw transferError;
 
-    if (!senderWallet || senderWallet.balance < parsedAmount) {
-      throw new Error("Insufficient balance");
-    }
-
-    // Debit sender
-    const { error: debitError } = await supabase
-      .from("wallets")
-      .update({ balance: senderWallet.balance - parsedAmount, updated_at: new Date().toISOString() })
-      .eq("user_id", user.id);
-    if (debitError) throw debitError;
-
-    // Credit receiver
-    const { data: receiverWallet, error: receiverWalletError } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("user_id", receiverId)
-      .single();
-    if (receiverWalletError) throw receiverWalletError;
-
-    const { error: creditError } = await supabase
-      .from("wallets")
-      .update({ balance: (receiverWallet?.balance || 0) + parsedAmount, updated_at: new Date().toISOString() })
-      .eq("user_id", receiverId);
-    if (creditError) throw creditError;
-
-    // Create transaction
-    const { error: transactionError } = await supabase
-      .from("transactions")
-      .insert({
-        sender_id: user.id,
-        receiver_id: receiverId,
-        amount: parsedAmount,
-        note: note || "",
-        status: "completed",
-      });
-    if (transactionError) throw transactionError;
-
-    return jsonResponse({ success: true });
+    return jsonResponse({ success: true, transaction_id: transactionId });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     return jsonResponse({ error: message }, 400);

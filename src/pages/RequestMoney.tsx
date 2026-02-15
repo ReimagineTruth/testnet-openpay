@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, QrCode, ScanLine } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { QRCodeSVG } from "qrcode.react";
+import { Html5Qrcode } from "html5-qrcode";
 
 interface Profile {
   id: string;
@@ -30,6 +33,7 @@ const RequestMoney = () => {
   const navigate = useNavigate();
   const { format: formatCurrency } = useCurrency();
   const [userId, setUserId] = useState<string | null>(null);
+  const [selfProfile, setSelfProfile] = useState<Profile | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [payerId, setPayerId] = useState("");
@@ -37,6 +41,8 @@ const RequestMoney = () => {
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanError, setScanError] = useState("");
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -52,6 +58,12 @@ const RequestMoney = () => {
     }
     setUserId(user.id);
 
+    const { data: selfProfileRow } = await supabase
+      .from("profiles")
+      .select("id, full_name, username")
+      .eq("id", user.id)
+      .single();
+
     const { data: profileRows } = await supabase
       .from("profiles")
       .select("id, full_name, username")
@@ -64,6 +76,7 @@ const RequestMoney = () => {
       .order("created_at", { ascending: false });
 
     setProfiles(profileRows || []);
+    setSelfProfile(selfProfileRow || null);
     setRequests(requestRows || []);
   };
 
@@ -79,6 +92,86 @@ const RequestMoney = () => {
 
   const incoming = requests.filter((r) => r.payer_id === userId);
   const outgoing = requests.filter((r) => r.requester_id === userId);
+  const receiveQrValue = useMemo(() => {
+    if (!userId) return "";
+    const params = new URLSearchParams({
+      uid: userId,
+      name: selfProfile?.full_name || "",
+      username: selfProfile?.username || "",
+    });
+    return `openpay://pay?${params.toString()}`;
+  }, [selfProfile?.full_name, selfProfile?.username, userId]);
+
+  const extractUserIdFromQr = (rawValue: string): string | null => {
+    const value = rawValue.trim();
+    if (!value) return null;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(value)) return value;
+
+    try {
+      const parsed = new URL(value);
+      const uid = parsed.searchParams.get("uid") || parsed.searchParams.get("to");
+      if (uid && uuidRegex.test(uid)) return uid;
+    } catch {
+      // no-op
+    }
+
+    const maybeUid = value.split("uid=")[1]?.split("&")[0];
+    if (maybeUid && uuidRegex.test(maybeUid)) return maybeUid;
+
+    return null;
+  };
+
+  useEffect(() => {
+    if (!showScanner) return;
+
+    let scanner: Html5Qrcode | null = null;
+    let isDone = false;
+    setScanError("");
+
+    const startScanner = async () => {
+      scanner = new Html5Qrcode("openpay-receive-scanner");
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          async (decodedText) => {
+            if (isDone) return;
+            isDone = true;
+
+            const scannedUserId = extractUserIdFromQr(decodedText);
+            await scanner?.stop().catch(() => undefined);
+            await scanner?.clear().catch(() => undefined);
+            setShowScanner(false);
+
+            if (!scannedUserId) {
+              toast.error("Invalid QR code");
+              return;
+            }
+            if (scannedUserId === userId) {
+              toast.error("You scanned your own QR code");
+              return;
+            }
+            navigate(`/send?to=${scannedUserId}`);
+          },
+          () => undefined,
+        );
+      } catch (error) {
+        setScanError(error instanceof Error ? error.message : "Unable to start camera");
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      isDone = true;
+      if (scanner) {
+        scanner.stop().catch(() => undefined);
+        scanner.clear().catch(() => undefined);
+      }
+    };
+  }, [navigate, showScanner, userId]);
 
   const handleCreate = async () => {
     if (!userId || !payerId) {
@@ -171,6 +264,30 @@ const RequestMoney = () => {
 
       <div className="px-4 space-y-4">
         <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-foreground">Receive via QR</h2>
+              <p className="text-sm text-muted-foreground">{selfProfile?.full_name || "Your account"}</p>
+              {selfProfile?.username && <p className="text-sm text-muted-foreground">@{selfProfile.username}</p>}
+            </div>
+            <Button type="button" variant="outline" onClick={() => setShowScanner(true)}>
+              <ScanLine className="mr-2 h-4 w-4" />
+              Scan QR code
+            </Button>
+          </div>
+          <div className="flex justify-center rounded-2xl border border-border bg-white p-4">
+            {receiveQrValue ? (
+              <QRCodeSVG value={receiveQrValue} size={180} level="M" includeMargin />
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading QR code...</p>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ask sender to scan this QR to open Express Send with your account.
+          </p>
+        </div>
+
+        <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
           <h2 className="font-semibold text-foreground">Create request</h2>
           <Input
             placeholder="Search person by name or username"
@@ -218,6 +335,7 @@ const RequestMoney = () => {
             return (
               <div key={request.id} className="border border-border rounded-xl p-3">
                 <p className="font-medium text-foreground">{requester?.full_name || "Unknown user"}</p>
+                {requester?.username && <p className="text-sm text-muted-foreground">@{requester.username}</p>}
                 <p className="text-sm text-muted-foreground">{format(new Date(request.created_at), "MMM d, yyyy")}</p>
                 <p className="font-semibold mt-1">{formatCurrency(request.amount)}</p>
                 {request.note && <p className="text-sm text-muted-foreground mt-1">{request.note}</p>}
@@ -250,6 +368,7 @@ const RequestMoney = () => {
             return (
               <div key={request.id} className="border border-border rounded-xl p-3">
                 <p className="font-medium text-foreground">{payer?.full_name || "Unknown user"}</p>
+                {payer?.username && <p className="text-sm text-muted-foreground">@{payer.username}</p>}
                 <p className="text-sm text-muted-foreground">{format(new Date(request.created_at), "MMM d, yyyy")}</p>
                 <p className="font-semibold mt-1">{formatCurrency(request.amount)}</p>
                 {request.note && <p className="text-sm text-muted-foreground mt-1">{request.note}</p>}
@@ -259,6 +378,18 @@ const RequestMoney = () => {
           })}
         </div>
       </div>
+
+      <Dialog open={showScanner} onOpenChange={setShowScanner}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <div className="mb-2 flex items-center gap-2">
+            <QrCode className="h-5 w-5 text-foreground" />
+            <h3 className="text-lg font-semibold text-foreground">Scan QR Code</h3>
+          </div>
+          <div id="openpay-receive-scanner" className="min-h-[260px] overflow-hidden rounded-2xl border border-border" />
+          {scanError && <p className="text-sm text-red-500">{scanError}</p>}
+          <p className="text-xs text-muted-foreground">Point your camera at an OpenPay receive QR code.</p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

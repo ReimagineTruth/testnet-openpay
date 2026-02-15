@@ -54,6 +54,7 @@ const AdminDashboard = () => {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [offset, setOffset] = useState(0);
   const [viewerEmail, setViewerEmail] = useState<string>("");
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const hasPrev = offset > 0;
   const hasNext = useMemo(() => {
@@ -115,6 +116,39 @@ const AdminDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const isSelfSendRow = (row: AdminHistoryRow) =>
+    row.source_table === "transactions" &&
+    row.event_type === "transaction_created" &&
+    !!row.actor_user_id &&
+    row.actor_user_id === row.related_user_id;
+
+  const handleSelfSendReview = async (row: AdminHistoryRow, decision: "approve" | "reject") => {
+    setReviewingId(row.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-dashboard", {
+        body: {
+          action: "review_self_send",
+          transaction_id: row.source_id,
+          decision,
+          reason: `Admin review from dashboard for ledger event ${row.id}`,
+        },
+      });
+      if (error) throw new Error(error.message || "Review failed");
+
+      const refundedId = (data as { data?: { refunded_transaction_id?: string } })?.data?.refunded_transaction_id;
+      if (decision === "approve" && refundedId) {
+        toast.success(`Refund approved. Refund TX: ${refundedId}`);
+      } else {
+        toast.success(`Self-send ${decision}d.`);
+      }
+      await loadPage(offset);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Review failed");
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background px-4 py-4 pb-10">
       <div className="mx-auto w-full max-w-6xl">
@@ -170,12 +204,13 @@ const AdminDashboard = () => {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Note</th>
                 <th className="px-4 py-3">Record ID</th>
+                <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody>
               {historyRows.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-10 text-center text-muted-foreground">
                     No history events found.
                   </td>
                 </tr>
@@ -191,6 +226,29 @@ const AdminDashboard = () => {
                   <td className="px-4 py-3">{row.status || "-"}</td>
                   <td className="px-4 py-3">{row.note || "-"}</td>
                   <td className="px-4 py-3 font-mono text-xs">{row.id}</td>
+                  <td className="px-4 py-3">
+                    {isSelfSendRow(row) ? (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleSelfSendReview(row, "approve")}
+                          disabled={reviewingId === row.id}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSelfSendReview(row, "reject")}
+                          disabled={reviewingId === row.id}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

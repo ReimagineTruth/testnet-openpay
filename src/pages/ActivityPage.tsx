@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Transaction {
   id: string;
@@ -20,6 +21,7 @@ interface Transaction {
 const ActivityPage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const navigate = useNavigate();
+  const { format: formatCurrency } = useCurrency();
 
   useEffect(() => {
     const load = async () => {
@@ -80,10 +82,12 @@ const ActivityPage = () => {
                   <p className="text-xs text-muted-foreground">
                     {tx.is_topup ? "Top up" : tx.is_sent ? "Payment" : "Received"}
                   </p>
+                  {tx.note && <p className="text-xs text-muted-foreground">{tx.note}</p>}
                 </div>
               </div>
-              <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-foreground" : "text-paypal-success"}`}>
-                {tx.is_topup ? "+" : tx.is_sent ? "-" : "+"}${tx.amount.toFixed(2)}
+              <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-red-500" : "text-paypal-success"}`}>
+                {tx.is_topup ? "+" : tx.is_sent ? "-" : "+"}
+                {formatCurrency(tx.amount)}
               </p>
             </div>
           ))}

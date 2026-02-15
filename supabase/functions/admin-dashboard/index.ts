@@ -55,6 +55,29 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
+    const action = (body as { action?: string }).action;
+
+    if (action === "review_self_send") {
+      const transactionId = String((body as { transaction_id?: string }).transaction_id || "");
+      const decision = String((body as { decision?: string }).decision || "").toLowerCase();
+      const reason = String((body as { reason?: string }).reason || "");
+
+      if (!transactionId) return jsonResponse({ error: "transaction_id is required" }, 400);
+      if (decision !== "approve" && decision !== "reject") {
+        return jsonResponse({ error: "decision must be approve or reject" }, 400);
+      }
+
+      const { data: reviewResult, error: reviewError } = await supabase.rpc("admin_refund_self_send", {
+        p_transaction_id: transactionId,
+        p_decision: decision,
+        p_reason: reason,
+        p_admin_email: user.email,
+      });
+      if (reviewError) return jsonResponse({ error: reviewError.message }, 400);
+
+      return jsonResponse({ success: true, data: reviewResult });
+    }
+
     const requestedLimit = Number((body as { limit?: number }).limit);
     const requestedOffset = Number((body as { offset?: number }).offset);
     const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(200, requestedLimit)) : 50;
