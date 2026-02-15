@@ -84,14 +84,20 @@ const PiAuthPage = () => {
   };
 
   const verifyPiAccessToken = async (accessToken: string) => {
-    const { data, error } = await supabase.functions.invoke("pi-platform", {
-      body: { action: "auth_verify", accessToken },
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+    const res = await fetch(`${supabaseUrl}/functions/v1/pi-platform`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": supabaseAnonKey,
+      },
+      body: JSON.stringify({ action: "auth_verify", accessToken }),
     });
 
-    if (error) throw new Error(error.message || "Pi auth verification failed");
-
-    const payload = data as { success?: boolean; data?: { uid?: string; username?: string }; error?: string } | null;
-    if (!payload?.success || !payload.data?.uid) {
+    const payload = await res.json();
+    if (!res.ok || !payload?.success || !payload.data?.uid) {
       throw new Error(payload?.error || "Pi auth verification failed");
     }
 
