@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,6 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
-
-type PiFunctionResult<T> = {
-  success?: boolean;
-  data?: T;
-  error?: string;
-};
 
 const TopUp = () => {
   const [amount, setAmount] = useState("");
@@ -30,13 +24,14 @@ const TopUp = () => {
     return true;
   };
 
-  const invokePiPlatform = async <T,>(body: Record<string, unknown>, fallbackError: string): Promise<T> => {
-    const { data, error } = await supabase.functions.invoke("pi-platform", { body });
+  const invokeTopUpAction = async (body: Record<string, unknown>, fallbackError: string) => {
+    const { data, error } = await supabase.functions.invoke("top-up", { body });
     if (error) throw new Error(await getFunctionErrorMessage(error, fallbackError));
 
-    const payload = (data ?? {}) as PiFunctionResult<T>;
-    if (!payload.success || !payload.data) throw new Error(payload.error || fallbackError);
-    return payload.data;
+    const payload = data as { success?: boolean; error?: string } | null;
+    if (payload && payload.success === false) {
+      throw new Error(payload.error || fallbackError);
+    }
   };
 
   const handleTopUp = async () => {
@@ -52,19 +47,14 @@ const TopUp = () => {
       const auth = await window.Pi.authenticate(["username", "payments"], async (payment) => {
         if (!payment.txid) return;
         try {
-          await invokePiPlatform(
-            { action: "payment_complete", paymentId: payment.identifier, txid: payment.txid },
+          await invokeTopUpAction(
+            { action: "complete", paymentId: payment.identifier, txid: payment.txid },
             "Failed to recover previous payment",
           );
         } catch {
-          // Do not block auth flow; SDK will retry callback.
+          // Do not block auth flow; SDK retries callback automatically.
         }
       });
-
-      await invokePiPlatform(
-        { action: "auth_verify", accessToken: auth.accessToken },
-        "Pi auth verification failed",
-      );
 
       await supabase.auth.updateUser({
         data: {
@@ -89,27 +79,20 @@ const TopUp = () => {
           },
           {
             onReadyForServerApproval: async (paymentId: string) => {
-              await invokePiPlatform(
-                { action: "payment_approve", paymentId, accessToken: auth.accessToken },
-                "Pi server approval failed",
-              );
+              await invokeTopUpAction({ action: "approve", paymentId }, "Pi server approval failed");
             },
             onReadyForServerCompletion: async (paymentId: string, txid: string) => {
               if (completed) return;
               completed = true;
 
-              await invokePiPlatform(
-                { action: "payment_complete", paymentId, txid, accessToken: auth.accessToken },
+              await invokeTopUpAction(
+                { action: "complete", paymentId, txid },
                 "Pi server completion failed",
               );
-
-              const { error } = await supabase.functions.invoke("top-up", {
-                body: { amount: parsedAmount, paymentId, txid },
-              });
-              if (error) {
-                reject(new Error(await getFunctionErrorMessage(error, "Top up failed")));
-                return;
-              }
+              await invokeTopUpAction(
+                { action: "credit", amount: parsedAmount, paymentId, txid },
+                "Top up failed",
+              );
 
               resolve();
             },
@@ -149,7 +132,7 @@ const TopUp = () => {
             {amount || "0.00"}
           </p>
           <p className="mt-2 text-muted-foreground">
-            Enter amount to add � {currency.flag} {currency.code}
+            Enter amount to add · {currency.flag} {currency.code}
           </p>
         </div>
         <Input

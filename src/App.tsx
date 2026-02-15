@@ -19,6 +19,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import AboutOpenPayPage from "./pages/AboutOpenPayPage";
 import PiAuthPage from "./pages/PiAuthPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
@@ -58,6 +59,7 @@ const App = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/about-openpay" element={<AboutOpenPayPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -17,6 +17,22 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
+  type PiPaymentStatus = {
+    developer_completed?: boolean;
+    transaction_verified?: boolean;
+    cancelled?: boolean;
+    user_cancelled?: boolean;
+  };
+  type PiPayment = {
+    amount?: number | string;
+    direction?: string;
+    user_uid?: string;
+    status?: PiPaymentStatus;
+    transaction?: { txid?: string };
+  };
+
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -29,43 +45,76 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) throw new Error("Unauthorized");
 
-    const { amount, paymentId, txid } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const action = String((body as { action?: string }).action || "credit");
+    const amount = (body as { amount?: number }).amount;
+    const paymentId = (body as { paymentId?: string }).paymentId;
+    const txid = (body as { txid?: string }).txid;
     const parsedAmount = Number(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error("Invalid amount");
     if (!paymentId || typeof paymentId !== "string") throw new Error("Missing paymentId");
 
     const piApiKey = Deno.env.get("PI_API_KEY");
     if (!piApiKey) throw new Error("PI_API_KEY is not configured");
 
-    const piPaymentResponse = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Key ${piApiKey}`,
-      },
-    });
+    const callPi = async (
+      endpoint: string,
+      method: "GET" | "POST",
+      payload?: Record<string, unknown>,
+    ): Promise<Record<string, unknown>> => {
+      const response = await fetch(`https://api.minepi.com/v2${endpoint}`, {
+        method,
+        headers: {
+          Authorization: `Key ${piApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: payload ? JSON.stringify(payload) : undefined,
+      });
 
-    type PiPaymentStatus = {
-      developer_completed?: boolean;
-      transaction_verified?: boolean;
-      cancelled?: boolean;
-      user_cancelled?: boolean;
-    };
-    type PiPayment = {
-      amount?: number | string;
-      direction?: string;
-      user_uid?: string;
-      status?: PiPaymentStatus;
-      transaction?: { txid?: string };
+      const raw = await response.text();
+      let data: Record<string, unknown> = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+
+      if (!response.ok) {
+        throw new Error((data.error as string) || `Pi API failed with status ${response.status}`);
+      }
+
+      return data;
     };
 
-    const rawPiPayment = await piPaymentResponse.text();
-    let piPayment: PiPayment = {};
-    try {
-      piPayment = rawPiPayment ? JSON.parse(rawPiPayment) : {};
-    } catch {
-      throw new Error("Unable to parse Pi payment verification response");
+    if (action === "approve") {
+      await callPi(`/payments/${paymentId}/approve`, "POST");
+      return jsonResponse({ success: true, action, paymentId });
     }
-    if (!piPaymentResponse.ok) throw new Error("Unable to verify Pi payment");
+
+    if (action === "complete") {
+      await callPi(`/payments/${paymentId}/complete`, "POST", txid ? { txid } : undefined);
+      return jsonResponse({ success: true, action, paymentId, txid: txid || null });
+    }
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error("Invalid amount");
+
+    // credit action: ensure payment is definitely complete/verified before crediting balance.
+    if (txid) {
+      try {
+        await callPi(`/payments/${paymentId}/complete`, "POST", { txid });
+      } catch {
+        // Ignore: endpoint is idempotent from product standpoint and may fail if already completed.
+      }
+    }
+
+    let piPayment: PiPayment | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      piPayment = await callPi(`/payments/${paymentId}`, "GET") as PiPayment;
+      const st = piPayment.status || {};
+      if (st.developer_completed && st.transaction_verified) break;
+      if (attempt < 2) await sleep(350);
+    }
+
+    if (!piPayment) throw new Error("Unable to verify Pi payment");
 
     const piAmount = Number(piPayment?.amount);
     const piDirection = String(piPayment?.direction || "");
@@ -75,7 +124,7 @@ serve(async (req) => {
     if (piDirection !== "user_to_app") throw new Error("Invalid payment direction");
     if (status.cancelled || status.user_cancelled) throw new Error("Payment is cancelled");
     if (!status.developer_completed || !status.transaction_verified) {
-      throw new Error("Payment is not completed/verified");
+      throw new Error("Payment is not completed/verified yet. Please retry.");
     }
     if (!Number.isFinite(piAmount) || Math.abs(piAmount - parsedAmount) > 0.000001) {
       throw new Error("Payment amount mismatch");
@@ -101,7 +150,7 @@ serve(async (req) => {
       });
     if (creditLogError) {
       if (creditLogError.code === "23505" || creditLogError.message?.toLowerCase().includes("duplicate")) {
-        throw new Error("This Pi payment was already credited");
+        return jsonResponse({ success: true, paymentId, alreadyCredited: true });
       }
       throw creditLogError;
     }
