@@ -1,1 +1,13 @@
 project_id = "xuhpyxhqoljkafywvbra"
+
+[functions.pi-platform]
+verify_jwt = false
+
+[functions.send-money]
+verify_jwt = false
+
+[functions.top-up]
+verify_jwt = false
+
+[functions.admin-dashboard]
+verify_jwt = false

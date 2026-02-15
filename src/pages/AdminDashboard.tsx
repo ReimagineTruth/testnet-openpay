@@ -80,7 +80,7 @@ const AdminDashboard = () => {
       }
       setViewerEmail(user.email);
 
-      const { data, error } = await supabase.rpc("admin_dashboard_history", {
+      const { data, error } = await supabase.rpc("admin_dashboard_history" as any, {
         p_limit: PAGE_SIZE,
         p_offset: nextOffset,
       });
@@ -88,7 +88,7 @@ const AdminDashboard = () => {
         throw new Error(error.message || "Failed to load admin dashboard");
       }
 
-      const payload = data as
+      const payload = data as unknown as
         | {
             success?: boolean;
             error?: string;
