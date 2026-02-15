@@ -71,6 +71,51 @@ export type Database = {
         }
         Relationships: []
       }
+      ledger_events: {
+        Row: {
+          actor_user_id: string | null
+          amount: number | null
+          event_type: string
+          id: string
+          note: string | null
+          occurred_at: string
+          payload: Json
+          recorded_at: string
+          related_user_id: string | null
+          source_id: string
+          source_table: string
+          status: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          amount?: number | null
+          event_type: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          payload?: Json
+          recorded_at?: string
+          related_user_id?: string | null
+          source_id: string
+          source_table: string
+          status?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          amount?: number | null
+          event_type?: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          payload?: Json
+          recorded_at?: string
+          related_user_id?: string | null
+          source_id?: string
+          source_table?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       payment_requests: {
         Row: {
           amount: number
@@ -101,6 +146,36 @@ export type Database = {
           requester_id?: string
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      pi_payment_credits: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          payment_id: string
+          status: string
+          txid: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          payment_id: string
+          status?: string
+          txid?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          payment_id?: string
+          status?: string
+          txid?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -211,6 +286,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_dashboard_history:
+        | { Args: never; Returns: Json }
+        | { Args: { p_limit: number; p_offset: number }; Returns: Json }
       is_transaction_participant: {
         Args: { _transaction_id: string }
         Returns: boolean
