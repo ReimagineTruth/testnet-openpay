@@ -35,6 +35,7 @@ const PiAuthPage = () => {
   const signInPiBackedAccount = async (piUid: string, piUsername: string) => {
     const piEmail = `pi_${piUid}@openpay.local`;
     const piPassword = `OpenPay-Pi-${piUid}-v1!`;
+    const piSignupUsername = `pi_${piUid.replace(/-/g, "").slice(0, 16)}`;
 
     const doSignIn = async () => {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -60,7 +61,7 @@ const PiAuthPage = () => {
         options: {
           data: {
             full_name: piUsername,
-            username: piUsername,
+            username: piSignupUsername,
             pi_uid: piUid,
             pi_username: piUsername,
             pi_connected_at: new Date().toISOString(),
