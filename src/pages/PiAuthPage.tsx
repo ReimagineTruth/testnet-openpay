@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import BrandLogo from "@/components/BrandLogo";
@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 const PiAuthPage = () => {
   const [piUser, setPiUser] = useState<{ uid: string; username: string } | null>(null);
   const [busyAuth, setBusyAuth] = useState(false);
+  const navigate = useNavigate();
 
   const sdkReady = typeof window !== "undefined" && !!window.Pi;
   const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
@@ -21,14 +22,74 @@ const PiAuthPage = () => {
     return true;
   };
 
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        navigate("/dashboard", { replace: true });
+      }
+    };
+    checkSession();
+  }, [navigate]);
+
+  const signInPiBackedAccount = async (piUid: string, piUsername: string) => {
+    const piEmail = `pi_${piUid}@openpay.local`;
+    const piPassword = `OpenPay-Pi-${piUid}-v1!`;
+
+    const doSignIn = async () => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: piEmail,
+        password: piPassword,
+      });
+      return { session: data.session, error };
+    };
+
+    const firstSignIn = await doSignIn();
+    if (!firstSignIn.error && firstSignIn.session) return;
+
+    const firstSignInMessage = firstSignIn.error?.message?.toLowerCase() || "";
+    const accountMissing =
+      firstSignInMessage.includes("invalid login credentials") ||
+      firstSignInMessage.includes("email not confirmed") ||
+      firstSignInMessage.includes("user not found");
+
+    if (accountMissing) {
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: piEmail,
+        password: piPassword,
+        options: {
+          data: {
+            full_name: piUsername,
+            username: piUsername,
+            pi_uid: piUid,
+            pi_username: piUsername,
+            pi_connected_at: new Date().toISOString(),
+          },
+        },
+      });
+
+      if (signUpError && !signUpError.message.toLowerCase().includes("already registered")) {
+        throw new Error(signUpError.message || "Failed to create Pi account");
+      }
+
+      const secondSignIn = await doSignIn();
+      if (secondSignIn.error || !secondSignIn.session) {
+        throw new Error(secondSignIn.error?.message || "Failed to sign in Pi account");
+      }
+      return;
+    }
+
+    throw new Error(firstSignIn.error?.message || "Failed to sign in Pi account");
+  };
+
   const handlePiAuth = async () => {
     if (!initPi() || !window.Pi) return;
     setBusyAuth(true);
     try {
       const auth = await window.Pi.authenticate(["username"]);
-      setPiUser(auth.user);
+      await signInPiBackedAccount(auth.user.uid, auth.user.username);
 
-      // Link Pi identity to current OpenPay account when user is signed in.
+      // Ensure current authenticated user has latest Pi metadata.
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -46,7 +107,9 @@ const PiAuthPage = () => {
         }
       }
 
+      setPiUser(auth.user);
       toast.success(`Authenticated as @${auth.user.username}`);
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Pi auth failed");
     } finally {
