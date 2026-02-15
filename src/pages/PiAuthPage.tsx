@@ -161,7 +161,8 @@ const PiAuthPage = () => {
             <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
           </p>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Learn more: <Link to="/about-openpay" className="text-paypal-blue font-medium">About OpenPay</Link>
+            Learn more: <Link to="/about-openpay" className="text-paypal-blue font-medium">About OpenPay</Link> ·{" "}
+            <Link to="/legal" className="text-paypal-blue font-medium">Legal</Link>
           </p>
         </div>
       </div>

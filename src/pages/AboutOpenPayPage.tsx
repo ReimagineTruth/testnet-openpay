@@ -19,19 +19,22 @@ const AboutOpenPayPage = () => {
 
       <div className="paypal-surface rounded-3xl p-5 space-y-4 text-sm text-foreground">
         <p>
-          OpenPay is designed as a stable payment experience where values inside the app are treated as
-          <span className="font-semibold"> 1 Pi = 1 USD</span> for in-app transaction use.
+          OpenPay is designed as a stable payment experience. For in-app transaction context, OpenPay presents
+          value as <span className="font-semibold">1 Pi = 1 USD</span>.
         </p>
         <p>
-          OpenPay transactions are currently intended for people and merchants that use OpenPay, plus apps and flows
-          that accept OpenPay.
+          OpenPay transactions are intended for people, merchants, and application flows that accept OpenPay.
         </p>
         <p>
-          Right now, OpenPay is connected to Pi payments only. You cannot send funds directly to external banks or
-          to other external wallets from OpenPay at this time.
+          OpenPay currently connects to Pi payment infrastructure only. You cannot send funds from OpenPay directly
+          to external banks or external third-party wallets at this time.
         </p>
         <p>
-          External bank and wallet integrations may be added in future releases when supported and compliant.
+          OpenPay is currently free to use with no platform fee for supported core app usage.
+        </p>
+        <p>
+          External bank and additional wallet integrations may be introduced in future releases,
+          subject to technical and legal availability.
         </p>
       </div>
     </div>
@@ -39,4 +42,3 @@ const AboutOpenPayPage = () => {
 };
 
 export default AboutOpenPayPage;
-

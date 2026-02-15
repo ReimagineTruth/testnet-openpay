@@ -14,10 +14,29 @@ const PrivacyPage = () => {
       </div>
 
       <div className="paypal-surface rounded-3xl p-5 space-y-4 text-sm text-foreground">
-        <p>OpenPay collects account and transaction data required to provide wallet and payment features.</p>
-        <p>We use your information to authenticate users, process payments, prevent fraud, and improve app reliability.</p>
-        <p>We do not sell your personal data. Access is limited to authorized systems and service providers.</p>
-        <p>You can request account-related support from Help Center and manage profile details in Settings.</p>
+        <p>
+          OpenPay processes limited account and transaction information necessary to provide authentication,
+          wallet balance updates, transaction history, support services, and operational security.
+        </p>
+        <p>
+          We use this information to run the service, prevent abuse and fraud, troubleshoot issues,
+          and comply with applicable legal obligations.
+        </p>
+        <p>
+          OpenPay does not sell personal information. Access to data is restricted to authorized systems and
+          service workflows required to operate the platform.
+        </p>
+        <p>
+          OpenPay currently supports Pi-based payment flows only. OpenPay does not currently support direct
+          external bank transfers or transfers to third-party external wallets.
+        </p>
+        <p>
+          OpenPay has no platform usage fee at this time and is free to use for supported in-app operations.
+          Network-side or third-party charges, if any, are outside OpenPay platform fees.
+        </p>
+        <p>
+          For license, legal notices, and trademark statements, see the Legal page.
+        </p>
       </div>
     </div>
   );
