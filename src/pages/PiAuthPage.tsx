@@ -83,12 +83,33 @@ const PiAuthPage = () => {
     throw new Error(firstSignIn.error?.message || "Failed to sign in Pi account");
   };
 
+  const verifyPiAccessToken = async (accessToken: string) => {
+    const { data, error } = await supabase.functions.invoke("pi-platform", {
+      body: { action: "auth_verify", accessToken },
+    });
+
+    if (error) throw new Error(error.message || "Pi auth verification failed");
+
+    const payload = data as { success?: boolean; data?: { uid?: string; username?: string }; error?: string } | null;
+    if (!payload?.success || !payload.data?.uid) {
+      throw new Error(payload?.error || "Pi auth verification failed");
+    }
+
+    return {
+      uid: String(payload.data.uid),
+      username: String(payload.data.username || ""),
+    };
+  };
+
   const handlePiAuth = async () => {
     if (!initPi() || !window.Pi) return;
     setBusyAuth(true);
     try {
       const auth = await window.Pi.authenticate(["username"]);
-      await signInPiBackedAccount(auth.user.uid, auth.user.username);
+      const verified = await verifyPiAccessToken(auth.accessToken);
+      const username = verified.username || auth.user.username;
+
+      await signInPiBackedAccount(verified.uid, username);
 
       // Ensure current authenticated user has latest Pi metadata.
       const {
@@ -98,8 +119,8 @@ const PiAuthPage = () => {
       if (user) {
         const { error } = await supabase.auth.updateUser({
           data: {
-            pi_uid: auth.user.uid,
-            pi_username: auth.user.username,
+            pi_uid: verified.uid,
+            pi_username: username,
             pi_connected_at: new Date().toISOString(),
           },
         });
@@ -108,8 +129,8 @@ const PiAuthPage = () => {
         }
       }
 
-      setPiUser(auth.user);
-      toast.success(`Authenticated as @${auth.user.username}`);
+      setPiUser({ uid: verified.uid, username });
+      toast.success(`Authenticated as @${username}`);
       navigate("/dashboard", { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Pi auth failed");

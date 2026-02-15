@@ -34,6 +34,23 @@ const TopUp = () => {
     }
   };
 
+  const verifyPiAccessToken = async (accessToken: string) => {
+    const { data, error } = await supabase.functions.invoke("pi-platform", {
+      body: { action: "auth_verify", accessToken },
+    });
+    if (error) throw new Error(await getFunctionErrorMessage(error, "Pi auth verification failed"));
+
+    const payload = data as { success?: boolean; data?: { uid?: string; username?: string }; error?: string } | null;
+    if (!payload?.success || !payload.data?.uid) {
+      throw new Error(payload?.error || "Pi auth verification failed");
+    }
+
+    return {
+      uid: String(payload.data.uid),
+      username: String(payload.data.username || ""),
+    };
+  };
+
   const handleTopUp = async () => {
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
@@ -45,10 +62,11 @@ const TopUp = () => {
     setLoading(true);
     try {
       const auth = await window.Pi.authenticate(["username", "payments"], async (payment) => {
-        if (!payment.txid) return;
+        const incompleteTxid = payment.transaction?.txid;
+        if (!incompleteTxid) return;
         try {
           await invokeTopUpAction(
-            { action: "complete", paymentId: payment.identifier, txid: payment.txid },
+            { action: "complete", paymentId: payment.identifier, txid: incompleteTxid },
             "Failed to recover previous payment",
           );
         } catch {
@@ -56,10 +74,12 @@ const TopUp = () => {
         }
       });
 
+      const verified = await verifyPiAccessToken(auth.accessToken);
+
       await supabase.auth.updateUser({
         data: {
-          pi_uid: auth.user.uid,
-          pi_username: auth.user.username,
+          pi_uid: verified.uid,
+          pi_username: verified.username || auth.user.username,
           pi_connected_at: new Date().toISOString(),
         },
       });

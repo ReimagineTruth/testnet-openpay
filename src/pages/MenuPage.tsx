@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard } from "lucide-react";
 import { toast } from "sonner";
 
 const MenuPage = () => {
@@ -33,6 +33,7 @@ const MenuPage = () => {
       items: [
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
         { icon: Activity, label: "Activity", action: () => navigate("/activity") },
+        { icon: Clapperboard, label: "Pi Ad Network", action: () => navigate("/pi-ads") },
       ],
     },
     {

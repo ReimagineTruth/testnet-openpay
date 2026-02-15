@@ -4,11 +4,36 @@ type PiPaymentData = {
   metadata?: Record<string, unknown>;
 };
 
+type PiPaymentDto = {
+  identifier: string;
+  user_uid: string;
+  amount: number;
+  memo: string;
+  metadata: Record<string, unknown>;
+  from_address: string;
+  to_address: string;
+  direction: "user_to_app" | "app_to_user";
+  created_at: string;
+  network: "Pi Network" | "Pi Testnet";
+  status: {
+    developer_approved: boolean;
+    transaction_verified: boolean;
+    developer_completed: boolean;
+    cancelled: boolean;
+    user_cancelled: boolean;
+  };
+  transaction: null | {
+    txid: string;
+    verified: boolean;
+    _link: string;
+  };
+};
+
 type PiPaymentCallbacks = {
   onReadyForServerApproval: (paymentId: string) => void | Promise<void>;
   onReadyForServerCompletion: (paymentId: string, txid: string) => void | Promise<void>;
-  onCancel: (paymentId?: string) => void;
-  onError: (error: { message?: string } | Error) => void;
+  onCancel: (paymentId: string) => void;
+  onError: (error: { message?: string } | Error, payment?: PiPaymentDto) => void;
 };
 
 type PiUser = {
@@ -54,7 +79,7 @@ type PiSdk = {
   init: (options: { version: string; sandbox?: boolean }) => void;
   authenticate: (
     scopes: string[],
-    onIncompletePaymentFound?: (payment: { identifier: string; txid?: string }) => void,
+    onIncompletePaymentFound?: (payment: PiPaymentDto) => void,
   ) => Promise<PiAuthResult>;
   createPayment: (payment: PiPaymentData, callbacks: PiPaymentCallbacks) => void;
   nativeFeaturesList?: () => Promise<Array<"inline_media" | "request_permission" | "ad_network">>;

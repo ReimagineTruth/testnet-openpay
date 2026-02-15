@@ -56,7 +56,17 @@ serve(async (req) => {
       if (!piResponse.ok) {
         return jsonResponse({ error: "Pi auth verification failed", status: piResponse.status, data }, 400);
       }
-      return jsonResponse({ success: true, data });
+
+      const uid = typeof data.uid === "string" ? data.uid : null;
+      const username = typeof data.username === "string" ? data.username : null;
+      if (!uid) {
+        return jsonResponse({ error: "Pi auth response missing uid" }, 400);
+      }
+
+      return jsonResponse({
+        success: true,
+        data: { uid, username },
+      });
     }
 
     const apiKey = Deno.env.get("PI_API_KEY");
@@ -79,7 +89,11 @@ serve(async (req) => {
         return jsonResponse({ error: "Pi ad verification failed", status: piResponse.status, data }, 400);
       }
 
-      return jsonResponse({ success: true, data });
+      const mediatorAckStatus =
+        typeof data.mediator_ack_status === "string" ? data.mediator_ack_status : null;
+      const rewarded = mediatorAckStatus === "granted";
+
+      return jsonResponse({ success: true, rewarded, data });
     }
 
     if (!paymentId || typeof paymentId !== "string") {

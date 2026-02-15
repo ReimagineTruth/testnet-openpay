@@ -22,6 +22,7 @@ import PrivacyPage from "./pages/PrivacyPage";
 import AboutOpenPayPage from "./pages/AboutOpenPayPage";
 import LegalPage from "./pages/LegalPage";
 import PiAuthPage from "./pages/PiAuthPage";
+import PiAdsPage from "./pages/PiAdsPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
@@ -42,6 +43,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<PiAuthPage />} />
+              <Route path="/pi-ads" element={<PiAdsPage />} />
               <Route path="/admin-mrwain" element={<AdminMrwainAuth />} />
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
               <Route path="/signin" element={<Navigate to="/admin-mrwain?mode=signin" replace />} />
