@@ -29,9 +29,82 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) throw new Error("Unauthorized");
 
-    const { amount } = await req.json();
+    const { amount, paymentId, txid } = await req.json();
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) throw new Error("Invalid amount");
+    if (!paymentId || typeof paymentId !== "string") throw new Error("Missing paymentId");
+
+    const piApiKey = Deno.env.get("PI_API_KEY");
+    if (!piApiKey) throw new Error("PI_API_KEY is not configured");
+
+    const piPaymentResponse = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Key ${piApiKey}`,
+      },
+    });
+
+    type PiPaymentStatus = {
+      developer_completed?: boolean;
+      transaction_verified?: boolean;
+      cancelled?: boolean;
+      user_cancelled?: boolean;
+    };
+    type PiPayment = {
+      amount?: number | string;
+      direction?: string;
+      user_uid?: string;
+      status?: PiPaymentStatus;
+      transaction?: { txid?: string };
+    };
+
+    const rawPiPayment = await piPaymentResponse.text();
+    let piPayment: PiPayment = {};
+    try {
+      piPayment = rawPiPayment ? JSON.parse(rawPiPayment) : {};
+    } catch {
+      throw new Error("Unable to parse Pi payment verification response");
+    }
+    if (!piPaymentResponse.ok) throw new Error("Unable to verify Pi payment");
+
+    const piAmount = Number(piPayment?.amount);
+    const piDirection = String(piPayment?.direction || "");
+    const status = piPayment.status || {};
+    const piTxid = piPayment.transaction?.txid ? String(piPayment.transaction.txid) : null;
+
+    if (piDirection !== "user_to_app") throw new Error("Invalid payment direction");
+    if (status.cancelled || status.user_cancelled) throw new Error("Payment is cancelled");
+    if (!status.developer_completed || !status.transaction_verified) {
+      throw new Error("Payment is not completed/verified");
+    }
+    if (!Number.isFinite(piAmount) || Math.abs(piAmount - parsedAmount) > 0.000001) {
+      throw new Error("Payment amount mismatch");
+    }
+    if (txid && piTxid && txid !== piTxid) throw new Error("Payment txid mismatch");
+
+    // If Pi UID was previously linked, ensure payment belongs to same Pi identity.
+    const { data: authUserData } = await supabase.auth.admin.getUserById(user.id);
+    const linkedPiUid = authUserData?.user?.user_metadata?.pi_uid as string | undefined;
+    const paymentPiUid = piPayment?.user_uid ? String(piPayment.user_uid) : "";
+    if (linkedPiUid && paymentPiUid && linkedPiUid !== paymentPiUid) {
+      throw new Error("Payment user does not match linked Pi account");
+    }
+
+    const { error: creditLogError } = await supabase
+      .from("pi_payment_credits")
+      .insert({
+        payment_id: paymentId,
+        user_id: user.id,
+        amount: parsedAmount,
+        txid: piTxid || txid || null,
+        status: "completed",
+      });
+    if (creditLogError) {
+      if (creditLogError.code === "23505" || creditLogError.message?.toLowerCase().includes("duplicate")) {
+        throw new Error("This Pi payment was already credited");
+      }
+      throw creditLogError;
+    }
 
     const { data: wallet, error: walletError } = await supabase
       .from("wallets")
@@ -65,10 +138,11 @@ serve(async (req) => {
         .from("wallets")
         .update({ balance: wallet.balance, updated_at: new Date().toISOString() })
         .eq("user_id", user.id);
+      await supabase.from("pi_payment_credits").delete().eq("payment_id", paymentId);
       throw transactionError;
     }
 
-    return jsonResponse({ success: true });
+    return jsonResponse({ success: true, paymentId });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     return jsonResponse({ error: message }, 400);

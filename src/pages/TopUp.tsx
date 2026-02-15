@@ -8,29 +8,128 @@ import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 
+type PiFunctionResult<T> = {
+  success?: boolean;
+  data?: T;
+  error?: string;
+};
+
 const TopUp = () => {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { currency } = useCurrency();
+  const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
+
+  const initPi = () => {
+    if (!window.Pi) {
+      toast.error("Pi SDK not loaded. Open this app in Pi Browser.");
+      return false;
+    }
+    window.Pi.init({ version: "2.0", sandbox });
+    return true;
+  };
+
+  const invokePiPlatform = async <T,>(body: Record<string, unknown>, fallbackError: string): Promise<T> => {
+    const { data, error } = await supabase.functions.invoke("pi-platform", { body });
+    if (error) throw new Error(await getFunctionErrorMessage(error, fallbackError));
+
+    const payload = (data ?? {}) as PiFunctionResult<T>;
+    if (!payload.success || !payload.data) throw new Error(payload.error || fallbackError);
+    return payload.data;
+  };
 
   const handleTopUp = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       toast.error("Enter a valid amount");
       return;
     }
+    if (!initPi() || !window.Pi) return;
+
     setLoading(true);
+    try {
+      const auth = await window.Pi.authenticate(["username", "payments"], async (payment) => {
+        if (!payment.txid) return;
+        try {
+          await invokePiPlatform(
+            { action: "payment_complete", paymentId: payment.identifier, txid: payment.txid },
+            "Failed to recover previous payment",
+          );
+        } catch {
+          // Do not block auth flow; SDK will retry callback.
+        }
+      });
 
-    const { error } = await supabase.functions.invoke("top-up", {
-      body: { amount: parseFloat(amount) },
-    });
+      await invokePiPlatform(
+        { action: "auth_verify", accessToken: auth.accessToken },
+        "Pi auth verification failed",
+      );
 
-    setLoading(false);
-    if (error) {
-      toast.error(await getFunctionErrorMessage(error, "Top up failed"));
-    } else {
-      toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} added to your balance!`);
+      await supabase.auth.updateUser({
+        data: {
+          pi_uid: auth.user.uid,
+          pi_username: auth.user.username,
+          pi_connected_at: new Date().toISOString(),
+        },
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        let completed = false;
+
+        window.Pi!.createPayment(
+          {
+            amount: parsedAmount,
+            memo: "OpenPay wallet top up",
+            metadata: {
+              feature: "top_up",
+              amount: parsedAmount,
+              requestedAt: new Date().toISOString(),
+            },
+          },
+          {
+            onReadyForServerApproval: async (paymentId: string) => {
+              await invokePiPlatform(
+                { action: "payment_approve", paymentId, accessToken: auth.accessToken },
+                "Pi server approval failed",
+              );
+            },
+            onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+              if (completed) return;
+              completed = true;
+
+              await invokePiPlatform(
+                { action: "payment_complete", paymentId, txid, accessToken: auth.accessToken },
+                "Pi server completion failed",
+              );
+
+              const { error } = await supabase.functions.invoke("top-up", {
+                body: { amount: parsedAmount, paymentId, txid },
+              });
+              if (error) {
+                reject(new Error(await getFunctionErrorMessage(error, "Top up failed")));
+                return;
+              }
+
+              resolve();
+            },
+            onCancel: () => {
+              reject(new Error("Payment cancelled"));
+            },
+            onError: (error) => {
+              const message = error instanceof Error ? error.message : error.message || "Payment failed";
+              reject(new Error(message));
+            },
+          },
+        );
+      });
+
+      toast.success(`${currency.symbol}${parsedAmount.toFixed(2)} added to your balance!`);
       navigate("/dashboard");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Top up failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -50,7 +149,7 @@ const TopUp = () => {
             {amount || "0.00"}
           </p>
           <p className="mt-2 text-muted-foreground">
-            Enter amount to add Â· {currency.flag} {currency.code}
+            Enter amount to add · {currency.flag} {currency.code}
           </p>
         </div>
         <Input
@@ -64,10 +163,10 @@ const TopUp = () => {
         />
         <Button
           onClick={handleTopUp}
-          disabled={loading || !amount || parseFloat(amount) <= 0}
+          disabled={loading || !amount || Number(amount) <= 0}
           className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
         >
-          {loading ? "Processing..." : `Add ${currency.symbol}${amount || "0.00"}`}
+          {loading ? "Processing Pi payment..." : `Pay with Pi and add ${currency.symbol}${amount || "0.00"}`}
         </Button>
       </div>
     </div>
