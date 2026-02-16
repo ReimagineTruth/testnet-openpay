@@ -59,6 +59,7 @@ const SendMoney = () => {
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showSendConfirm, setShowSendConfirm] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [scanError, setScanError] = useState("");
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -318,6 +319,20 @@ const SendMoney = () => {
     }
   };
 
+  const handleOpenSendConfirm = () => {
+    const parsedAmount = parseFloat(amount);
+    if (!selectedUser || !amount || parsedAmount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    const usdAmount = parsedAmount / currency.rate;
+    if (usdAmount > balance) {
+      toast.error("Amount exceeds your available balance");
+      return;
+    }
+    setShowSendConfirm(true);
+  };
+
   const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   const colors = ["bg-paypal-dark", "bg-paypal-light-blue", "bg-primary", "bg-muted-foreground"];
   const renderAvatar = (user: UserProfile, colorIndex: number) => (
@@ -372,7 +387,7 @@ const SendMoney = () => {
             className="mb-4 h-14 rounded-2xl border-white/70 bg-white text-center text-2xl" min="0.01" step="0.01" />
           <Input placeholder="Add a note (optional)" value={note} onChange={(e) => setNote(e.target.value)}
             className="mb-6 h-12 rounded-2xl border-white/70 bg-white" />
-          <Button onClick={handleSend} disabled={loading || !amount || parseFloat(amount) <= 0}
+          <Button onClick={handleOpenSendConfirm} disabled={loading || !amount || parseFloat(amount) <= 0}
             className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]">
             {loading ? "Sending..." : `Send ${currency.symbol}${amount || "0.00"}`}
           </Button>
@@ -382,6 +397,60 @@ const SendMoney = () => {
           setReceiptOpen(open);
           if (!open) navigate("/dashboard");
         }} receipt={receiptData} />
+
+        <Dialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
+          <DialogContent className="rounded-3xl">
+            <h3 className="text-xl font-bold text-foreground">Confirm payment</h3>
+            {selectedUser && (
+              <div className="mt-3 flex items-center gap-3 rounded-2xl bg-secondary/70 px-3 py-2.5">
+                {selectedUser.avatar_url ? (
+                  <img src={selectedUser.avatar_url} alt={selectedUser.full_name} className="h-12 w-12 rounded-full border border-border object-cover" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
+                    <span className="text-sm font-bold text-primary-foreground">{getInitials(selectedUser.full_name)}</span>
+                  </div>
+                )}
+                <div>
+                  <p className="font-semibold text-foreground">{selectedUser.full_name}</p>
+                  {selectedUser.username && <p className="text-sm text-muted-foreground">@{selectedUser.username}</p>}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 space-y-2 rounded-2xl border border-border p-3 text-sm">
+              <p className="flex items-center justify-between">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-semibold text-foreground">{currency.symbol}{Number(amount || 0).toFixed(2)} ({currency.code})</span>
+              </p>
+              <p className="flex items-center justify-between">
+                <span className="text-muted-foreground">Converted (USD)</span>
+                <span className="font-semibold text-foreground">${(Number(amount || 0) / (currency.rate || 1)).toFixed(2)}</span>
+              </p>
+              {note.trim() && (
+                <p className="flex items-start justify-between gap-2">
+                  <span className="text-muted-foreground">Note</span>
+                  <span className="max-w-[70%] text-right text-foreground">{note.trim()}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <Button variant="outline" className="h-11 flex-1 rounded-2xl" onClick={() => setShowSendConfirm(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+                disabled={loading}
+                onClick={async () => {
+                  setShowSendConfirm(false);
+                  await handleSend();
+                }}
+              >
+                {loading ? "Sending..." : "Confirm & Send"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
@@ -505,6 +574,7 @@ const SendMoney = () => {
           <p className="text-xs text-muted-foreground">If camera does not open in Pi Browser, enable camera permission for this app and retry.</p>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };

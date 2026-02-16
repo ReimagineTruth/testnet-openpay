@@ -3,11 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
 import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 
 const MenuPage = () => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
+    clearAllAppSecurityUnlocks();
     await supabase.auth.signOut();
     toast.success("Logged out");
     navigate("/auth");

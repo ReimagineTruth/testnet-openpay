@@ -17,6 +17,7 @@ interface Profile {
   id: string;
   full_name: string;
   username: string | null;
+  avatar_url?: string | null;
 }
 
 interface PaymentRequest {
@@ -60,13 +61,13 @@ const RequestMoney = () => {
 
     const { data: selfProfileRow } = await supabase
       .from("profiles")
-      .select("id, full_name, username")
+      .select("id, full_name, username, avatar_url")
       .eq("id", user.id)
       .single();
 
     const { data: profileRows } = await supabase
       .from("profiles")
-      .select("id, full_name, username")
+      .select("id, full_name, username, avatar_url")
       .neq("id", user.id);
 
     const { data: requestRows } = await supabase
@@ -323,7 +324,18 @@ const RequestMoney = () => {
           </div>
           <div className="flex justify-center rounded-2xl border border-border bg-white p-4">
             {receiveQrValue ? (
-              <QRCodeSVG value={receiveQrValue} size={180} level="M" includeMargin />
+              <QRCodeSVG
+                value={receiveQrValue}
+                size={180}
+                level="H"
+                includeMargin
+                imageSettings={{
+                  src: "/openpay-o.svg",
+                  height: 30,
+                  width: 30,
+                  excavate: true,
+                }}
+              />
             ) : (
               <p className="text-sm text-muted-foreground">Loading QR code...</p>
             )}
@@ -347,8 +359,19 @@ const RequestMoney = () => {
                 onClick={() => setPayerId(p.id)}
                 className={`w-full text-left px-3 py-2 hover:bg-muted ${payerId === p.id ? "bg-muted" : ""}`}
               >
-                <p className="font-medium text-foreground">{p.full_name}</p>
-                {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                <div className="flex items-center gap-2">
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt={p.full_name} className="h-9 w-9 rounded-full border border-border object-cover" />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {p.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium text-foreground">{p.full_name}</p>
+                    {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                  </div>
+                </div>
               </button>
             ))}
             {filteredProfiles.length === 0 && (
@@ -380,8 +403,19 @@ const RequestMoney = () => {
             const requester = profileMap.get(request.requester_id);
             return (
               <div key={request.id} className="border border-border rounded-xl p-3">
-                <p className="font-medium text-foreground">{requester?.full_name || "Unknown user"}</p>
-                {requester?.username && <p className="text-sm text-muted-foreground">@{requester.username}</p>}
+                <div className="flex items-center gap-2">
+                  {requester?.avatar_url ? (
+                    <img src={requester.avatar_url} alt={requester.full_name} className="h-10 w-10 rounded-full border border-border object-cover" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {(requester?.full_name || "U").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium text-foreground">{requester?.full_name || "Unknown user"}</p>
+                    {requester?.username && <p className="text-sm text-muted-foreground">@{requester.username}</p>}
+                  </div>
+                </div>
                 <p className="text-sm text-muted-foreground">{format(new Date(request.created_at), "MMM d, yyyy")}</p>
                 <p className="font-semibold mt-1">{formatCurrency(request.amount)}</p>
                 {request.note && <p className="text-sm text-muted-foreground mt-1">{request.note}</p>}
@@ -413,8 +447,19 @@ const RequestMoney = () => {
             const payer = profileMap.get(request.payer_id);
             return (
               <div key={request.id} className="border border-border rounded-xl p-3">
-                <p className="font-medium text-foreground">{payer?.full_name || "Unknown user"}</p>
-                {payer?.username && <p className="text-sm text-muted-foreground">@{payer.username}</p>}
+                <div className="flex items-center gap-2">
+                  {payer?.avatar_url ? (
+                    <img src={payer.avatar_url} alt={payer.full_name} className="h-10 w-10 rounded-full border border-border object-cover" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {(payer?.full_name || "U").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium text-foreground">{payer?.full_name || "Unknown user"}</p>
+                    {payer?.username && <p className="text-sm text-muted-foreground">@{payer.username}</p>}
+                  </div>
+                </div>
                 <p className="text-sm text-muted-foreground">{format(new Date(request.created_at), "MMM d, yyyy")}</p>
                 <p className="font-semibold mt-1">{formatCurrency(request.amount)}</p>
                 {request.note && <p className="text-sm text-muted-foreground mt-1">{request.note}</p>}

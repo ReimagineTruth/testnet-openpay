@@ -19,6 +19,7 @@ interface Transaction {
   created_at: string;
   other_name?: string;
   other_username?: string;
+  other_avatar_url?: string | null;
   is_sent?: boolean;
   is_topup?: boolean;
 }
@@ -73,13 +74,14 @@ const Dashboard = () => {
             const otherId = tx.sender_id === user.id ? tx.receiver_id : tx.sender_id;
             const { data: p } = await supabase
               .from("profiles")
-              .select("full_name, username")
+              .select("full_name, username, avatar_url")
               .eq("id", otherId)
               .single();
             return {
               ...tx,
               other_name: p?.full_name || "Unknown",
               other_username: p?.username || null,
+              other_avatar_url: p?.avatar_url || null,
               is_sent: tx.sender_id === user.id,
               is_topup: tx.sender_id === user.id && tx.receiver_id === user.id,
             };
@@ -147,11 +149,19 @@ const Dashboard = () => {
             {transactions.map((tx) => (
               <button key={tx.id} onClick={() => showReceipt(tx)} className="flex w-full items-center justify-between p-4 text-left hover:bg-secondary/40 transition">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-paypal-light-blue/50 bg-secondary">
-                    <span className="text-xs font-bold text-secondary-foreground">
-                      {tx.other_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
+                  {tx.other_avatar_url ? (
+                    <img
+                      src={tx.other_avatar_url}
+                      alt={tx.other_name || "Profile"}
+                      className="h-10 w-10 rounded-full border border-paypal-light-blue/50 object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-paypal-light-blue/50 bg-secondary">
+                      <span className="text-xs font-bold text-secondary-foreground">
+                        {tx.other_name?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <p className="font-semibold text-foreground">{tx.other_name}</p>
                     {tx.other_username && <p className="text-xs text-muted-foreground">@{tx.other_username}</p>}

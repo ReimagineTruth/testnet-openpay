@@ -7,6 +7,7 @@ export interface AppSecuritySettings {
 
 const securityKey = (userId: string) => `openpay_security_${userId}`;
 const unlockKey = (userId: string) => `openpay_security_unlocked_${userId}`;
+const unlockPrefix = "openpay_security_unlocked_";
 
 const toBase64 = (bytes: Uint8Array): string => {
   let binary = "";
@@ -44,6 +45,16 @@ export const saveAppSecuritySettings = (userId: string, settings: AppSecuritySet
 export const clearAppSecurityUnlock = (userId: string) => {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(unlockKey(userId));
+};
+
+export const clearAllAppSecurityUnlocks = () => {
+  if (typeof window === "undefined") return;
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i += 1) {
+    const key = sessionStorage.key(i);
+    if (key && key.startsWith(unlockPrefix)) keysToRemove.push(key);
+  }
+  keysToRemove.forEach((key) => sessionStorage.removeItem(key));
 };
 
 export const markAppSecurityUnlocked = (userId: string) => {

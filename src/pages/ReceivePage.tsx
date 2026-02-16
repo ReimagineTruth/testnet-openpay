@@ -126,7 +126,20 @@ const ReceivePage = () => {
 
         <div className="mt-5 rounded-2xl border border-border bg-white p-4">
           <div className="flex justify-center">
-            {receiveQrValue ? <QRCodeSVG value={receiveQrValue} size={210} level="M" includeMargin /> : null}
+            {receiveQrValue ? (
+              <QRCodeSVG
+                value={receiveQrValue}
+                size={210}
+                level="H"
+                includeMargin
+                imageSettings={{
+                  src: "/openpay-o.svg",
+                  height: 34,
+                  width: 34,
+                  excavate: true,
+                }}
+              />
+            ) : null}
           </div>
           <p className="mt-3 text-center text-xs text-muted-foreground">
             Sender can scan this QR in Express Send to auto-fill your details.

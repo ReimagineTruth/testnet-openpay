@@ -14,6 +14,7 @@ interface Profile {
   id: string;
   full_name: string;
   username: string | null;
+  avatar_url?: string | null;
 }
 
 interface Invoice {
@@ -56,7 +57,7 @@ const SendInvoice = () => {
 
     const { data: profileRows } = await supabase
       .from("profiles")
-      .select("id, full_name, username")
+      .select("id, full_name, username, avatar_url")
       .neq("id", user.id);
 
     const { data: invoiceRows } = await supabase
@@ -174,8 +175,19 @@ const SendInvoice = () => {
                 onClick={() => setRecipientId(p.id)}
                 className={`w-full text-left px-3 py-2 hover:bg-muted ${recipientId === p.id ? "bg-muted" : ""}`}
               >
-                <p className="font-medium text-foreground">{p.full_name}</p>
-                {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                <div className="flex items-center gap-2">
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt={p.full_name} className="h-9 w-9 rounded-full border border-border object-cover" />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {p.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium text-foreground">{p.full_name}</p>
+                    {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                  </div>
+                </div>
               </button>
             ))}
             {filteredProfiles.length === 0 && (
@@ -212,7 +224,16 @@ const SendInvoice = () => {
             const sender = profileMap.get(invoice.sender_id);
             return (
               <div key={invoice.id} className="border border-border rounded-xl p-3">
-                <p className="font-medium text-foreground">{sender?.full_name || "Unknown user"}</p>
+                <div className="flex items-center gap-2">
+                  {sender?.avatar_url ? (
+                    <img src={sender.avatar_url} alt={sender.full_name} className="h-10 w-10 rounded-full border border-border object-cover" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {(sender?.full_name || "U").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <p className="font-medium text-foreground">{sender?.full_name || "Unknown user"}</p>
+                </div>
                 <p className="text-sm text-muted-foreground">{format(new Date(invoice.created_at), "MMM d, yyyy")}</p>
                 <p className="font-semibold mt-1">{formatCurrency(invoice.amount)}</p>
                 {invoice.description && <p className="text-sm text-muted-foreground mt-1">{invoice.description}</p>}
@@ -235,7 +256,16 @@ const SendInvoice = () => {
             const recipient = profileMap.get(invoice.recipient_id);
             return (
               <div key={invoice.id} className="border border-border rounded-xl p-3">
-                <p className="font-medium text-foreground">{recipient?.full_name || "Unknown user"}</p>
+                <div className="flex items-center gap-2">
+                  {recipient?.avatar_url ? (
+                    <img src={recipient.avatar_url} alt={recipient.full_name} className="h-10 w-10 rounded-full border border-border object-cover" />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {(recipient?.full_name || "U").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <p className="font-medium text-foreground">{recipient?.full_name || "Unknown user"}</p>
+                </div>
                 <p className="text-sm text-muted-foreground">{format(new Date(invoice.created_at), "MMM d, yyyy")}</p>
                 <p className="font-semibold mt-1">{formatCurrency(invoice.amount)}</p>
                 {invoice.description && <p className="text-sm text-muted-foreground mt-1">{invoice.description}</p>}

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   AppSecuritySettings,
+  clearAllAppSecurityUnlocks,
   clearAppSecurityUnlock,
   hashSecret,
   isBiometricSupported,
@@ -80,6 +81,7 @@ const SettingsPage = () => {
   };
 
   const handleLogout = async () => {
+    clearAllAppSecurityUnlocks();
     await supabase.auth.signOut();
     navigate("/auth");
   };

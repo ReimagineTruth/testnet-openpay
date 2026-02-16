@@ -13,6 +13,7 @@ interface Contact {
   contact_id: string;
   full_name: string;
   username: string | null;
+  avatar_url?: string | null;
 }
 
 const Contacts = () => {
@@ -36,10 +37,15 @@ const Contacts = () => {
       const enriched = await Promise.all(data.map(async (c) => {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("full_name, username")
+          .select("full_name, username, avatar_url")
           .eq("id", c.contact_id)
           .single();
-        return { ...c, full_name: profile?.full_name || "Unknown", username: profile?.username || null };
+        return {
+          ...c,
+          full_name: profile?.full_name || "Unknown",
+          username: profile?.username || null,
+          avatar_url: profile?.avatar_url || null,
+        };
       }));
       setContacts(enriched);
     }
@@ -124,9 +130,13 @@ const Contacts = () => {
               onClick={() => setSelectedContact(contact)}
               className="flex w-full items-center gap-3 border-b border-border/70 px-3 py-4 text-left transition hover:bg-secondary/50 last:border-b-0"
             >
-              <div className={`w-12 h-12 rounded-full ${colors[i % colors.length]} flex items-center justify-center`}>
-                <span className="text-sm font-bold text-primary-foreground">{getInitials(contact.full_name)}</span>
-              </div>
+              {contact.avatar_url ? (
+                <img src={contact.avatar_url} alt={contact.full_name} className="h-12 w-12 rounded-full border border-border object-cover" />
+              ) : (
+                <div className={`w-12 h-12 rounded-full ${colors[i % colors.length]} flex items-center justify-center`}>
+                  <span className="text-sm font-bold text-primary-foreground">{getInitials(contact.full_name)}</span>
+                </div>
+              )}
               <div className="text-left">
                 <p className="font-semibold text-foreground">{contact.full_name}</p>
                 {contact.username && <p className="text-sm text-muted-foreground">@{contact.username}</p>}
@@ -159,9 +169,13 @@ const Contacts = () => {
         <DialogContent className="rounded-3xl">
           {selectedContact && (
             <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-paypal-dark mx-auto flex items-center justify-center mb-3">
-                <span className="text-lg font-bold text-primary-foreground">{getInitials(selectedContact.full_name)}</span>
-              </div>
+              {selectedContact.avatar_url ? (
+                <img src={selectedContact.avatar_url} alt={selectedContact.full_name} className="mx-auto mb-3 h-16 w-16 rounded-full border border-border object-cover" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-paypal-dark mx-auto flex items-center justify-center mb-3">
+                  <span className="text-lg font-bold text-primary-foreground">{getInitials(selectedContact.full_name)}</span>
+                </div>
+              )}
               <h3 className="text-xl font-bold">{selectedContact.full_name}</h3>
               {selectedContact.username && <p className="text-muted-foreground">@{selectedContact.username}</p>}
               <Button
