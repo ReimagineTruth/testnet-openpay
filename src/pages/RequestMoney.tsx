@@ -141,8 +141,10 @@ const RequestMoney = () => {
             isDone = true;
 
             const scannedUserId = extractUserIdFromQr(decodedText);
-            await scanner?.stop().catch(() => undefined);
-            await scanner?.clear().catch(() => undefined);
+            if (scanner) {
+              await scanner.stop().catch(() => undefined);
+              await scanner.clear().catch(() => undefined);
+            }
             setShowScanner(false);
 
             if (!scannedUserId) {
@@ -167,8 +169,9 @@ const RequestMoney = () => {
     return () => {
       isDone = true;
       if (scanner) {
-        scanner.stop().catch(() => undefined);
-        scanner.clear().catch(() => undefined);
+        const s = scanner;
+        s.stop().catch(() => undefined);
+        s.clear().catch(() => undefined);
       }
     };
   }, [navigate, showScanner, userId]);
