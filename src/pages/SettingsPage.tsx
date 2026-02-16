@@ -9,8 +9,8 @@ import {
   AppSecuritySettings,
   clearAllAppSecurityUnlocks,
   clearAppSecurityUnlock,
+  getBiometricSupportStatus,
   hashSecret,
-  isBiometricSupported,
   loadAppSecuritySettings,
   registerBiometricCredential,
   saveAppSecuritySettings,
@@ -26,6 +26,8 @@ const SettingsPage = () => {
   const [securitySettings, setSecuritySettings] = useState<AppSecuritySettings>({});
   const [pin, setPin] = useState("");
   const [securityPassword, setSecurityPassword] = useState("");
+  const [biometricSupportMessage, setBiometricSupportMessage] = useState("Checking biometric support...");
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
@@ -54,6 +56,19 @@ const SettingsPage = () => {
 
     load();
   }, [navigate]);
+
+  useEffect(() => {
+    const checkBiometricSupport = async () => {
+      const status = await getBiometricSupportStatus();
+      setBiometricAvailable(status.supported);
+      if (status.supported) {
+        setBiometricSupportMessage("Face ID / Fingerprint is available on this device.");
+        return;
+      }
+      setBiometricSupportMessage(status.reason || "Face ID / Fingerprint is not supported on this device/browser.");
+    };
+    checkBiometricSupport();
+  }, []);
 
   const handleSave = async () => {
     if (!userId) return;
@@ -122,8 +137,9 @@ const SettingsPage = () => {
 
   const handleSetupBiometric = async () => {
     if (!userId) return;
-    if (!isBiometricSupported()) {
-      toast.error("Face ID / Fingerprint is not supported on this device.");
+    const status = await getBiometricSupportStatus();
+    if (!status.supported) {
+      toast.error(status.reason || "Face ID / Fingerprint is not supported on this device.");
       return;
     }
     setSavingSecurity(true);
@@ -274,10 +290,10 @@ const SettingsPage = () => {
           <div className="rounded-2xl border border-border/70 bg-secondary/50 p-3">
             <p className="text-sm font-semibold text-foreground">Face ID / Fingerprint</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Requires supported device/browser with HTTPS.
+              {biometricSupportMessage}
             </p>
             <div className="mt-2 flex gap-2">
-              <Button onClick={handleSetupBiometric} disabled={savingSecurity} className="h-10 flex-1 rounded-2xl">
+              <Button onClick={handleSetupBiometric} disabled={savingSecurity || !biometricAvailable} className="h-10 flex-1 rounded-2xl">
                 {securitySettings.biometricCredentialId ? "Reconfigure Biometric" : "Enable Biometric"}
               </Button>
               {securitySettings.biometricCredentialId && (

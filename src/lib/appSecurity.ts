@@ -5,6 +5,12 @@ export interface AppSecuritySettings {
   biometricCredentialId?: string;
 }
 
+export interface BiometricSupportStatus {
+  supported: boolean;
+  reason?: string;
+  isPiBrowser: boolean;
+}
+
 const securityKey = (userId: string) => `openpay_security_${userId}`;
 const unlockKey = (userId: string) => `openpay_security_unlocked_${userId}`;
 const unlockPrefix = "openpay_security_unlocked_";
@@ -79,14 +85,88 @@ export const hashSecret = async (value: string): Promise<string> => {
     .join("");
 };
 
-export const isBiometricSupported = () =>
-  typeof window !== "undefined" &&
-  window.isSecureContext &&
-  "PublicKeyCredential" in window &&
-  !!navigator.credentials;
+const isPiBrowserUserAgent = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /pibrowser|pi browser|minepi/i.test(ua);
+};
+
+export const getBiometricSupportStatus = async (): Promise<BiometricSupportStatus> => {
+  const isPiBrowser = isPiBrowserUserAgent();
+
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return { supported: false, reason: "Biometric checks are only available in a browser.", isPiBrowser };
+  }
+
+  if (!window.isSecureContext) {
+    return {
+      supported: false,
+      reason: "Face ID / Fingerprint requires HTTPS secure context.",
+      isPiBrowser,
+    };
+  }
+
+  if (!("PublicKeyCredential" in window) || !navigator.credentials) {
+    return {
+      supported: false,
+      reason: isPiBrowser
+        ? "Pi Browser on this device does not expose biometric WebAuthn. Use PIN or security password."
+        : "This browser does not support biometric WebAuthn.",
+      isPiBrowser,
+    };
+  }
+
+  if (
+    typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function"
+  ) {
+    try {
+      const available =
+        await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!available) {
+        return {
+          supported: false,
+          reason: isPiBrowser
+            ? "No device biometric authenticator is available in Pi Browser. Use PIN or security password."
+            : "No platform authenticator is available. Set up Face ID/Fingerprint on this device first.",
+          isPiBrowser,
+        };
+      }
+    } catch {
+      return {
+        supported: false,
+        reason: "Unable to verify biometric capability in this browser.",
+        isPiBrowser,
+      };
+    }
+  }
+
+  return { supported: true, isPiBrowser };
+};
+
+export const isBiometricSupported = async () => (await getBiometricSupportStatus()).supported;
+
+const toBiometricErrorMessage = (error: unknown, fallback: string) => {
+  if (!(error instanceof Error)) return fallback;
+  if (error.name === "NotAllowedError") {
+    return "Biometric prompt was dismissed or not approved.";
+  }
+  if (error.name === "InvalidStateError") {
+    return "Biometric credential is already registered on this device/browser.";
+  }
+  if (error.name === "NotSupportedError") {
+    return "This device/browser does not support Face ID / Fingerprint for WebAuthn.";
+  }
+  if (error.name === "SecurityError") {
+    return "Security requirements failed. Use HTTPS and a supported browser.";
+  }
+  return error.message || fallback;
+};
 
 export const registerBiometricCredential = async (userId: string, displayName: string): Promise<string> => {
-  if (!isBiometricSupported()) throw new Error("Biometric authentication is not supported on this device.");
+  const support = await getBiometricSupportStatus();
+  if (!support.supported) {
+    throw new Error(support.reason || "Biometric authentication is not supported on this device.");
+  }
 
   const challenge = crypto.getRandomValues(new Uint8Array(32));
   const userBytes = new TextEncoder().encode(userId.slice(0, 64));
@@ -94,7 +174,6 @@ export const registerBiometricCredential = async (userId: string, displayName: s
     challenge,
     rp: {
       name: "OpenPay",
-      id: window.location.hostname,
     },
     user: {
       id: userBytes,
@@ -111,9 +190,14 @@ export const registerBiometricCredential = async (userId: string, displayName: s
     attestation: "none",
   };
 
-  const credential = (await navigator.credentials.create({
-    publicKey: creationOptions,
-  })) as PublicKeyCredential | null;
+  let credential: PublicKeyCredential | null = null;
+  try {
+    credential = (await navigator.credentials.create({
+      publicKey: creationOptions,
+    })) as PublicKeyCredential | null;
+  } catch (error) {
+    throw new Error(toBiometricErrorMessage(error, "Could not register biometric credential."));
+  }
 
   if (!credential) throw new Error("Could not register biometric credential.");
   const rawId = new Uint8Array(credential.rawId);
@@ -121,7 +205,10 @@ export const registerBiometricCredential = async (userId: string, displayName: s
 };
 
 export const verifyBiometricCredential = async (credentialId: string) => {
-  if (!isBiometricSupported()) throw new Error("Biometric authentication is not supported on this device.");
+  const support = await getBiometricSupportStatus();
+  if (!support.supported) {
+    throw new Error(support.reason || "Biometric authentication is not supported on this device.");
+  }
 
   const challenge = crypto.getRandomValues(new Uint8Array(32));
   const idBytes = fromBase64(credentialId);
@@ -130,12 +217,17 @@ export const verifyBiometricCredential = async (credentialId: string) => {
     challenge,
     timeout: 60_000,
     userVerification: "required",
-    allowCredentials: [{ type: "public-key", id: idBytes }],
+    allowCredentials: [{ type: "public-key", id: idBytes, transports: ["internal"] }],
   };
 
-  const assertion = await navigator.credentials.get({
-    publicKey: requestOptions,
-  });
+  let assertion: Credential | null = null;
+  try {
+    assertion = await navigator.credentials.get({
+      publicKey: requestOptions,
+    });
+  } catch (error) {
+    throw new Error(toBiometricErrorMessage(error, "Biometric verification failed."));
+  }
 
   if (!assertion) throw new Error("Biometric verification failed.");
 };
