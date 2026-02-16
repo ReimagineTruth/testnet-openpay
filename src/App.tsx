@@ -12,6 +12,7 @@ import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
 import ActivityPage from "./pages/ActivityPage";
 import RequestMoney from "./pages/RequestMoney";
+import DisputesPage from "./pages/DisputesPage";
 import SendInvoice from "./pages/SendInvoice";
 import HelpCenter from "./pages/HelpCenter";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -56,6 +57,7 @@ const App = () => {
               <Route path="/activity" element={<ActivityPage />} />
               <Route path="/request-money" element={<RequestMoney />} />
               <Route path="/send-invoice" element={<SendInvoice />} />
+              <Route path="/disputes" element={<DisputesPage />} />
               <Route path="/help-center" element={<HelpCenter />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/settings" element={<SettingsPage />} />

@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 const MenuPage = () => {
@@ -39,6 +39,7 @@ const MenuPage = () => {
     {
       title: "Get support",
       items: [
+        { icon: ShieldAlert, label: "Disputes", action: () => navigate("/disputes") },
         { icon: HelpCircle, label: "Help Center", action: () => navigate("/help-center") },
         { icon: Info, label: "About OpenPay", action: () => navigate("/about-openpay") },
         { icon: Scale, label: "Legal", action: () => navigate("/legal") },

@@ -70,6 +70,42 @@ export type Database = {
         }
         Relationships: []
       }
+      disputes: {
+        Row: {
+          admin_response: string | null
+          created_at: string
+          description: string
+          id: string
+          reason: string
+          status: string
+          transaction_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_response?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          reason?: string
+          status?: string
+          transaction_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_response?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          reason?: string
+          status?: string
+          transaction_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number
