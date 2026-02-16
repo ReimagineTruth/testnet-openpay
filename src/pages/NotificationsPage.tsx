@@ -111,8 +111,6 @@ const NotificationsPage = () => {
         });
       }
 
-      });
-
       notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setItems(notifications.slice(0, 30));
       setLoading(false);

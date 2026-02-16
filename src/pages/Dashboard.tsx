@@ -44,6 +44,7 @@ const Dashboard = () => {
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [balanceHidden, setBalanceHidden] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingAlerts, setPendingAlerts] = useState(0);
   const [showAgreement, setShowAgreement] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -133,6 +134,21 @@ const Dashboard = () => {
         setTransactions(enriched);
       }
 
+      const [requestsRes, invoicesRes] = await Promise.all([
+        supabase
+          .from("payment_requests")
+          .select("id")
+          .eq("payer_id", user.id)
+          .eq("status", "pending"),
+        supabase
+          .from("invoices")
+          .select("id")
+          .eq("recipient_id", user.id)
+          .eq("status", "pending"),
+      ]);
+      const pendingCount = (requestsRes.data?.length || 0) + (invoicesRes.data?.length || 0);
+      setPendingAlerts(pendingCount);
+
       const agreementKey = `openpay_usage_agreement_v1_${user.id}`;
       const onboardingKey = `openpay_onboarding_done_v1_${user.id}`;
       const hasAcceptedAgreement = typeof window !== "undefined" && localStorage.getItem(agreementKey) === "1";
@@ -206,8 +222,11 @@ const Dashboard = () => {
           >
             <RefreshCw className={`h-5 w-5 text-foreground ${refreshing ? "animate-spin" : ""}`} />
           </button>
-          <button onClick={() => navigate("/notifications")} aria-label="Open notifications" className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
+          <button onClick={() => navigate("/notifications")} aria-label="Open notifications" className="paypal-surface relative flex h-10 w-10 items-center justify-center rounded-full">
             <Bell className="h-5 w-5 text-foreground" />
+            {pendingAlerts > 0 && (
+              <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />
+            )}
           </button>
           <button onClick={() => navigate("/settings")} aria-label="Open settings" className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
             <Settings className="h-5 w-5 text-foreground" />
