@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_self_send_reviews: {
+        Row: {
+          created_at: string
+          decision: string
+          id: string
+          reason: string
+          reviewed_by_email: string
+          transaction_id: string
+        }
+        Insert: {
+          created_at?: string
+          decision: string
+          id?: string
+          reason?: string
+          reviewed_by_email: string
+          transaction_id: string
+        }
+        Update: {
+          created_at?: string
+          decision?: string
+          id?: string
+          reason?: string
+          reviewed_by_email?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_self_send_reviews_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           contact_id: string
@@ -230,6 +265,42 @@ export type Database = {
         }
         Relationships: []
       }
+      supported_currencies: {
+        Row: {
+          created_at: string
+          display_code: string
+          display_name: string
+          flag: string
+          is_active: boolean
+          iso_code: string
+          symbol: string
+          updated_at: string
+          usd_rate: number
+        }
+        Insert: {
+          created_at?: string
+          display_code: string
+          display_name: string
+          flag: string
+          is_active?: boolean
+          iso_code: string
+          symbol: string
+          updated_at?: string
+          usd_rate: number
+        }
+        Update: {
+          created_at?: string
+          display_code?: string
+          display_name?: string
+          flag?: string
+          is_active?: boolean
+          iso_code?: string
+          symbol?: string
+          updated_at?: string
+          usd_rate?: number
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
@@ -289,9 +360,27 @@ export type Database = {
       admin_dashboard_history:
         | { Args: never; Returns: Json }
         | { Args: { p_limit: number; p_offset: number }; Returns: Json }
+      admin_refund_self_send: {
+        Args: {
+          p_admin_email?: string
+          p_decision: string
+          p_reason?: string
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       is_transaction_participant: {
         Args: { _transaction_id: string }
         Returns: boolean
+      }
+      transfer_funds: {
+        Args: {
+          p_amount: number
+          p_note?: string
+          p_receiver_id: string
+          p_sender_id: string
+        }
+        Returns: string
       }
     }
     Enums: {
