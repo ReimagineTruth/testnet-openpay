@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Search, Info, ScanLine, QrCode, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import CurrencySelector from "@/components/CurrencySelector";
@@ -128,12 +128,16 @@ const SendMoney = () => {
       const toId = searchParams.get("to");
       const qrAmount = searchParams.get("amount");
       const qrCurrency = (searchParams.get("currency") || "").toUpperCase();
+      const qrNote = searchParams.get("note");
       if (toId && profiles) {
         const found = profiles.find(p => p.id === toId);
         if (found) {
           setSelectedUser(found);
           if (qrAmount && Number.isFinite(Number(qrAmount)) && Number(qrAmount) > 0) {
             setAmount(Number(qrAmount).toFixed(2));
+          }
+          if (qrNote) {
+            setNote(qrNote);
           }
           if (qrCurrency) {
             const foundCurrency = currencies.find((c) => c.code === qrCurrency);
@@ -418,7 +422,10 @@ const SendMoney = () => {
 
         <Dialog open={showSendConfirm} onOpenChange={setShowSendConfirm}>
           <DialogContent className="rounded-3xl">
-            <h3 className="text-xl font-bold text-foreground">Confirm payment</h3>
+            <DialogTitle className="text-xl font-bold text-foreground">Confirm payment</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              Review the details before sending.
+            </DialogDescription>
             {selectedUser && (
               <div className="mt-3 flex items-center gap-3 rounded-2xl bg-secondary/70 px-3 py-2.5">
                 {selectedUser.avatar_url ? (
@@ -569,6 +576,8 @@ const SendMoney = () => {
 
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
         <DialogContent className="rounded-3xl">
+          <DialogTitle className="sr-only">Confirm recipient</DialogTitle>
+          <DialogDescription className="sr-only">Confirm that the selected recipient is correct.</DialogDescription>
           {selectedUser && (
             <div>
               {selectedUser.avatar_url ? (
@@ -595,11 +604,13 @@ const SendMoney = () => {
         <DialogContent className="max-w-md rounded-3xl">
           <div className="mb-2 flex items-center gap-2">
             <QrCode className="h-5 w-5 text-foreground" />
-            <h3 className="text-lg font-semibold text-foreground">Scan QR Code</h3>
+            <DialogTitle className="text-lg font-semibold text-foreground">Scan QR Code</DialogTitle>
           </div>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Scan an OpenPay receive QR to fill recipient details.
+          </DialogDescription>
           <div id="openpay-send-scanner" className="min-h-[260px] overflow-hidden rounded-2xl border border-border" />
           {scanError && <p className="text-sm text-red-500">{scanError}</p>}
-          <p className="text-xs text-muted-foreground">Scan an OpenPay receive QR to fill recipient details.</p>
           <p className="text-xs text-muted-foreground">If camera does not open in Pi Browser, enable camera permission for this app and retry.</p>
         </DialogContent>
       </Dialog>

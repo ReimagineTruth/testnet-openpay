@@ -35,6 +35,7 @@ const SendInvoice = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [recipientId, setRecipientId] = useState("");
+  const [selectedRecipient, setSelectedRecipient] = useState<Profile | null>(null);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -116,6 +117,7 @@ const SendInvoice = () => {
     setDescription("");
     setDueDate("");
     setRecipientId("");
+    setSelectedRecipient(null);
     await loadData();
   };
 
@@ -168,30 +170,61 @@ const SendInvoice = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <div className="max-h-40 overflow-auto rounded-xl border border-border">
-            {filteredProfiles.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setRecipientId(p.id)}
-                className={`w-full text-left px-3 py-2 hover:bg-muted ${recipientId === p.id ? "bg-muted" : ""}`}
-              >
+          <div className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-muted-foreground">
+            {selectedRecipient ? (
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  {p.avatar_url ? (
-                    <img src={p.avatar_url} alt={p.full_name} className="h-9 w-9 rounded-full border border-border object-cover" />
+                  {selectedRecipient.avatar_url ? (
+                    <img src={selectedRecipient.avatar_url} alt={selectedRecipient.full_name} className="h-8 w-8 rounded-full border border-border object-cover" />
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
-                      {p.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {selectedRecipient.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                     </div>
                   )}
                   <div>
-                    <p className="font-medium text-foreground">{p.full_name}</p>
-                    {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                    <p className="text-sm font-semibold text-foreground">{selectedRecipient.full_name}</p>
+                    {selectedRecipient.username && <p className="text-xs text-muted-foreground">@{selectedRecipient.username}</p>}
                   </div>
                 </div>
-              </button>
-            ))}
-            {filteredProfiles.length === 0 && (
-              <p className="px-3 py-4 text-sm text-muted-foreground">No users found</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-full px-3"
+                  onClick={() => { setSelectedRecipient(null); setRecipientId(""); }}
+                >
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Select recipient</p>
+                <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-border">
+                  {filteredProfiles.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setRecipientId(p.id); setSelectedRecipient(p); }}
+                      className="w-full text-left px-3 py-2 hover:bg-muted"
+                    >
+                      <div className="flex items-center gap-2">
+                        {p.avatar_url ? (
+                          <img src={p.avatar_url} alt={p.full_name} className="h-9 w-9 rounded-full border border-border object-cover" />
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                            {p.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-foreground">{p.full_name}</p>
+                          {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  {filteredProfiles.length === 0 && (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">No users found</p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
           <Input

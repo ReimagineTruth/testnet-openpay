@@ -210,8 +210,19 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
     const LIVE_SYNC_KEY = "openpay_last_fx_sync_at";
     const LIVE_SYNC_MIN_INTERVAL_MS = 60_000;
 
+    const shouldAttemptFxSync = () => {
+      if (typeof window === "undefined") return false;
+      const disabled = String(import.meta.env.VITE_DISABLE_FX_SYNC || "").toLowerCase() === "true";
+      if (disabled) return false;
+      const { hostname, protocol } = window.location;
+      if (hostname === "localhost" || hostname === "127.0.0.1") return false;
+      if (protocol !== "https:") return false;
+      return true;
+    };
+
     const maybeSyncLiveRates = async () => {
       try {
+        if (!shouldAttemptFxSync()) return;
         const now = Date.now();
         const rawLast = typeof window !== "undefined" ? window.localStorage.getItem(LIVE_SYNC_KEY) : null;
         const last = rawLast ? Number(rawLast) : 0;

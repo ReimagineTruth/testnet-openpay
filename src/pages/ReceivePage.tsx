@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Copy, Share2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { toast } from "sonner";
 
 interface SelfProfile {
   id: string;
@@ -63,6 +64,43 @@ const ReceivePage = () => {
     if (normalizedAmount) params.set("amount", normalizedAmount);
     return `openpay://pay?${params.toString()}`;
   }, [currencyCode, normalizedAmount, profile?.full_name, profile?.id, profile?.username]);
+
+  const webPayLink = useMemo(() => {
+    if (!profile?.id || typeof window === "undefined") return "";
+    const params = new URLSearchParams({
+      to: profile.id,
+      currency: currencyCode,
+    });
+    if (normalizedAmount) params.set("amount", normalizedAmount);
+    return `${window.location.origin}/send?${params.toString()}`;
+  }, [currencyCode, normalizedAmount, profile?.id]);
+
+  const handleCopy = async (value: string, label: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error("Copy failed. Please try again.");
+    }
+  };
+
+  const handleShare = async (value: string) => {
+    if (!value) return;
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({
+          title: "OpenPay payment request",
+          text: "Pay me securely on OpenPay.",
+          url: value,
+        });
+        return;
+      } catch {
+        // Fall back to copy.
+      }
+    }
+    await handleCopy(value, "Link");
+  };
 
   const initials = profile?.full_name
     ? profile.full_name
@@ -146,9 +184,60 @@ const ReceivePage = () => {
           </p>
         </div>
 
-        <Button className="mt-4 h-12 w-full rounded-2xl" onClick={() => navigate("/send")}>
-          Open Express Send
-        </Button>
+        <div className="mt-4 space-y-3">
+          <div className="rounded-2xl border border-border bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment request link</p>
+            <p className="mt-1 break-all text-sm text-foreground">{webPayLink || "Loading link..."}</p>
+            <div className="mt-3 flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 flex-1 rounded-2xl"
+                onClick={() => handleCopy(webPayLink, "Payment request link")}
+                disabled={!webPayLink}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Link
+              </Button>
+              <Button
+                type="button"
+                className="h-10 flex-1 rounded-2xl"
+                onClick={() => handleShare(webPayLink)}
+                disabled={!webPayLink}
+              >
+                <Share2 className="mr-2 h-4 w-4" />
+                Share
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Share this link in social media or messages to request payment.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay QR link</p>
+            <p className="mt-1 break-all text-sm text-foreground">{receiveQrValue || "Loading link..."}</p>
+            <div className="mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full rounded-2xl"
+                onClick={() => handleCopy(receiveQrValue, "QR link")}
+                disabled={!receiveQrValue}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy QR Link
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Use this when the sender is opening the OpenPay app directly.
+            </p>
+          </div>
+
+          <Button className="h-12 w-full rounded-2xl" onClick={() => navigate("/send")}>
+            Open Express Send
+          </Button>
+        </div>
       </div>
     </div>
   );

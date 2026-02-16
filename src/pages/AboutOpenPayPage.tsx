@@ -18,24 +18,37 @@ const AboutOpenPayPage = () => {
       </div>
 
       <div className="paypal-surface rounded-3xl p-5 space-y-4 text-sm text-foreground">
+        <p className="text-base font-semibold text-paypal-dark">A professional payment experience for Pi users.</p>
         <p>
-          OpenPay is designed as a stable payment experience. For in-app transaction context, OpenPay presents
-          value as <span className="font-semibold">1 Pi = 1 USD</span>.
+          OpenPay is built for fast, simple payments between people and businesses. Inside the app, we show a
+          stable reference value of <span className="font-semibold">1 Pi = 1 USD</span> for clarity.
         </p>
         <p>
-          OpenPay transactions are intended for people, merchants, and application flows that accept OpenPay.
+          The platform focuses on Pi-native transfers, requests, and receipts with a clean, auditable experience.
+          It is designed for everyday transactions where both parties use OpenPay.
         </p>
-        <p>
-          OpenPay currently connects to Pi payment infrastructure only. You cannot send funds from OpenPay directly
-          to external banks or external third-party wallets at this time.
-        </p>
-        <p>
-          OpenPay is currently free to use with no platform fee for supported core app usage.
-        </p>
-        <p>
-          External bank and additional wallet integrations may be introduced in future releases,
-          subject to technical and legal availability.
-        </p>
+
+        <div>
+          <p className="font-semibold text-foreground">What OpenPay supports</p>
+          <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+            <li>Secure Pi-auth sign in and on-device security controls.</li>
+            <li>Express send, receive via QR, and payment requests.</li>
+            <li>Transparent activity history with receipt records.</li>
+          </ul>
+        </div>
+
+        <div>
+          <p className="font-semibold text-foreground">Current limitations</p>
+          <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+            <li>No direct transfers to external banks or third-party wallets.</li>
+            <li>Availability depends on Pi infrastructure and supported regions.</li>
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-xs text-muted-foreground">
+          OpenPay is currently free for supported core features. Future integrations may be introduced based on
+          technical and legal availability.
+        </div>
       </div>
     </div>
   );

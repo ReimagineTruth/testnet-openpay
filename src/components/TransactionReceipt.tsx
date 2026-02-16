@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Download, X } from "lucide-react";
 import { format } from "date-fns";
@@ -60,6 +60,8 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm rounded-3xl p-0 overflow-hidden">
+        <DialogTitle className="sr-only">Transaction receipt</DialogTitle>
+        <DialogDescription className="sr-only">Receipt details for the selected transaction.</DialogDescription>
         <div className="bg-gradient-to-br from-paypal-blue to-[#0073e6] p-6 text-center text-white">
           <CheckCircle className="mx-auto h-12 w-12 mb-2" />
           <h2 className="text-xl font-bold">{typeLabel}</h2>

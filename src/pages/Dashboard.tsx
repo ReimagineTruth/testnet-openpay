@@ -9,7 +9,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import BrandLogo from "@/components/BrandLogo";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 import { toast } from "sonner";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 interface Transaction {
@@ -281,10 +281,10 @@ const Dashboard = () => {
 
       <Dialog open={showAgreement} onOpenChange={() => undefined}>
         <DialogContent className="rounded-3xl sm:max-w-md">
-          <h3 className="text-xl font-bold text-foreground">OpenPay User Agreement</h3>
-          <p className="text-sm text-muted-foreground">
+          <DialogTitle className="text-xl font-bold text-foreground">OpenPay User Agreement</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
             OpenPay is designed for stable Pi payments between users and businesses. By continuing, you agree to use OpenPay responsibly and lawfully.
-          </p>
+          </DialogDescription>
           <div className="rounded-2xl border border-border/70 p-3 text-sm text-foreground">
             <p>1. Verify recipient details before sending.</p>
             <p>2. Do not use OpenPay for fraud, abuse, or illegal transactions.</p>
@@ -320,8 +320,8 @@ const Dashboard = () => {
           <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-paypal-blue">
             Step {onboardingStep + 1} of {onboardingSteps.length}
           </div>
-          <h3 className="text-xl font-bold text-foreground">{onboardingSteps[onboardingStep].title}</h3>
-          <p className="text-sm text-muted-foreground">{onboardingSteps[onboardingStep].description}</p>
+          <DialogTitle className="text-xl font-bold text-foreground">{onboardingSteps[onboardingStep].title}</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">{onboardingSteps[onboardingStep].description}</DialogDescription>
 
           <div className="mt-3 flex gap-1.5">
             {onboardingSteps.map((_, index) => (

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { QRCodeSVG } from "qrcode.react";
 import { Html5Qrcode } from "html5-qrcode";
 
@@ -38,6 +38,7 @@ const RequestMoney = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [payerId, setPayerId] = useState("");
+  const [selectedPayer, setSelectedPayer] = useState<Profile | null>(null);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
@@ -131,6 +132,15 @@ const RequestMoney = () => {
     let isDone = false;
     setScanError("");
 
+    const waitForScannerElement = async () => {
+      if (typeof document === "undefined") return false;
+      for (let i = 0; i < 10; i += 1) {
+        if (document.getElementById("openpay-receive-scanner")) return true;
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      return false;
+    };
+
     const stopScanner = async () => {
       if (!scanner) return;
       try {
@@ -148,6 +158,11 @@ const RequestMoney = () => {
     };
 
     const startScanner = async () => {
+      const mounted = await waitForScannerElement();
+      if (!mounted) {
+        setScanError("Scanner failed to mount. Please try again.");
+        return;
+      }
       if (typeof window !== "undefined" && !window.isSecureContext) {
         setScanError("Camera needs HTTPS (or localhost) to work.");
         return;
@@ -251,6 +266,7 @@ const RequestMoney = () => {
     setAmount("");
     setNote("");
     setPayerId("");
+    setSelectedPayer(null);
     await loadData();
   };
 
@@ -306,7 +322,7 @@ const RequestMoney = () => {
         <button onClick={() => navigate("/menu")}>
           <ArrowLeft className="w-6 h-6 text-foreground" />
         </button>
-        <h1 className="text-xl font-bold text-foreground">Request Money</h1>
+        <h1 className="text-xl font-bold text-foreground">Request Payment</h1>
       </div>
 
       <div className="px-4 space-y-4">
@@ -352,30 +368,61 @@ const RequestMoney = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <div className="max-h-40 overflow-auto rounded-xl border border-border">
-            {filteredProfiles.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPayerId(p.id)}
-                className={`w-full text-left px-3 py-2 hover:bg-muted ${payerId === p.id ? "bg-muted" : ""}`}
-              >
+          <div className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-muted-foreground">
+            {selectedPayer ? (
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  {p.avatar_url ? (
-                    <img src={p.avatar_url} alt={p.full_name} className="h-9 w-9 rounded-full border border-border object-cover" />
+                  {selectedPayer.avatar_url ? (
+                    <img src={selectedPayer.avatar_url} alt={selectedPayer.full_name} className="h-8 w-8 rounded-full border border-border object-cover" />
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
-                      {p.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                      {selectedPayer.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                     </div>
                   )}
                   <div>
-                    <p className="font-medium text-foreground">{p.full_name}</p>
-                    {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                    <p className="text-sm font-semibold text-foreground">{selectedPayer.full_name}</p>
+                    {selectedPayer.username && <p className="text-xs text-muted-foreground">@{selectedPayer.username}</p>}
                   </div>
                 </div>
-              </button>
-            ))}
-            {filteredProfiles.length === 0 && (
-              <p className="px-3 py-4 text-sm text-muted-foreground">No users found</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-full px-3"
+                  onClick={() => { setSelectedPayer(null); setPayerId(""); }}
+                >
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Select recipient</p>
+                <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-border">
+                  {filteredProfiles.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setPayerId(p.id); setSelectedPayer(p); }}
+                      className="w-full text-left px-3 py-2 hover:bg-muted"
+                    >
+                      <div className="flex items-center gap-2">
+                        {p.avatar_url ? (
+                          <img src={p.avatar_url} alt={p.full_name} className="h-9 w-9 rounded-full border border-border object-cover" />
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                            {p.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-foreground">{p.full_name}</p>
+                          {p.username && <p className="text-sm text-muted-foreground">@{p.username}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  {filteredProfiles.length === 0 && (
+                    <p className="px-3 py-4 text-sm text-muted-foreground">No users found</p>
+                  )}
+                </div>
+              </div>
             )}
           </div>
           <Input
@@ -474,11 +521,13 @@ const RequestMoney = () => {
         <DialogContent className="max-w-md rounded-3xl">
           <div className="mb-2 flex items-center gap-2">
             <QrCode className="h-5 w-5 text-foreground" />
-            <h3 className="text-lg font-semibold text-foreground">Scan QR Code</h3>
+            <DialogTitle className="text-lg font-semibold text-foreground">Scan QR Code</DialogTitle>
           </div>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Point your camera at an OpenPay receive QR code.
+          </DialogDescription>
           <div id="openpay-receive-scanner" className="min-h-[260px] overflow-hidden rounded-2xl border border-border" />
           {scanError && <p className="text-sm text-red-500">{scanError}</p>}
-          <p className="text-xs text-muted-foreground">Point your camera at an OpenPay receive QR code.</p>
           <p className="text-xs text-muted-foreground">If camera does not open in Pi Browser, enable camera permission for this app and retry.</p>
         </DialogContent>
       </Dialog>

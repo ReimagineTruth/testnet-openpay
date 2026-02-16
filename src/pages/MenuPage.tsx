@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 
@@ -26,7 +26,7 @@ const MenuPage = () => {
     {
       title: "Get paid",
       items: [
-        { icon: CircleDollarSign, label: "Request money", action: () => navigate("/request-money") },
+        { icon: CircleDollarSign, label: "Request payment", action: () => navigate("/request-payment") },
         { icon: FileText, label: "Send invoice", action: () => navigate("/send-invoice") },
       ],
     },
@@ -36,6 +36,7 @@ const MenuPage = () => {
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
         { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
         { icon: Activity, label: "Activity", action: () => navigate("/activity") },
+        { icon: BookOpen, label: "Public ledger", action: () => navigate("/ledger") },
         { icon: Users, label: "Affiliate referrals", action: () => navigate("/affiliate") },
         { icon: Clapperboard, label: "Pi Ad Network", action: () => navigate("/pi-ads") },
       ],

@@ -5,7 +5,7 @@ import BottomNav from "@/components/BottomNav";
 import { Search, UserPlus, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 interface Contact {
@@ -153,7 +153,10 @@ const Contacts = () => {
       {/* Add Contact Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="rounded-3xl">
-          <h2 className="text-xl font-bold mb-4">Add Contact</h2>
+          <DialogTitle className="text-xl font-bold mb-1">Add Contact</DialogTitle>
+          <DialogDescription className="mb-4 text-sm text-muted-foreground">
+            Add a contact by username.
+          </DialogDescription>
           <Input
             placeholder="Enter username"
             value={addEmail}
@@ -167,6 +170,8 @@ const Contacts = () => {
       {/* Contact Detail Sheet */}
       <Dialog open={!!selectedContact} onOpenChange={() => setSelectedContact(null)}>
         <DialogContent className="rounded-3xl">
+          <DialogTitle className="sr-only">Contact details</DialogTitle>
+          <DialogDescription className="sr-only">View contact details and start a payment.</DialogDescription>
           {selectedContact && (
             <div className="text-center">
               {selectedContact.avatar_url ? (

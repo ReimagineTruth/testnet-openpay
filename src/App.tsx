@@ -22,6 +22,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import AffiliatePage from "./pages/AffiliatePage";
 import OpenPayGuidePage from "./pages/OpenPayGuidePage";
+import PublicLedgerPage from "./pages/PublicLedgerPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import AboutOpenPayPage from "./pages/AboutOpenPayPage";
@@ -62,7 +63,7 @@ const App = () => {
               <Route path="/menu" element={<MenuPage />} />
               <Route path="/currency-converter" element={<CurrencyConverterPage />} />
               <Route path="/activity" element={<ActivityPage />} />
-              <Route path="/request-money" element={<RequestMoney />} />
+              <Route path="/request-payment" element={<RequestMoney />} />
               <Route path="/send-invoice" element={<SendInvoice />} />
               <Route path="/disputes" element={<DisputesPage />} />
               <Route path="/help-center" element={<HelpCenter />} />
@@ -70,6 +71,7 @@ const App = () => {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/affiliate" element={<AffiliatePage />} />
+              <Route path="/ledger" element={<PublicLedgerPage />} />
               <Route path="/openpay-guide" element={<OpenPayGuidePage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />

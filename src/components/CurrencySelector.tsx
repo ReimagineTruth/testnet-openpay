@@ -4,6 +4,7 @@ import { ChevronDown, Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -43,6 +44,7 @@ const CurrencySelector = () => {
       <DialogContent className="max-w-sm p-0 gap-0">
         <DialogHeader className="px-4 pt-4 pb-2">
           <DialogTitle className="text-lg font-bold text-foreground">Select Currency</DialogTitle>
+          <DialogDescription className="sr-only">Choose your preferred currency.</DialogDescription>
         </DialogHeader>
         <div className="px-4 pb-2">
           <div className="relative">
