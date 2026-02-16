@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, Eye, EyeOff, Settings } from "lucide-react";
+import { Bell, Eye, EyeOff, RefreshCw, Settings } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -43,6 +43,7 @@ const Dashboard = () => {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [balanceHidden, setBalanceHidden] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showAgreement, setShowAgreement] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -72,10 +73,15 @@ const Dashboard = () => {
     },
   ];
 
-  useEffect(() => {
-    const load = async () => {
+  const loadDashboard = async () => {
+    setRefreshing(true);
+    try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/signin"); return; }
+      if (!user) { 
+        setRefreshing(false);
+        navigate("/signin"); 
+        return; 
+      }
       setUserId(user.id);
 
       const { data: claimResult } = await supabase.rpc("claim_welcome_bonus");
@@ -141,8 +147,13 @@ const Dashboard = () => {
       } else if (!hasFinishedOnboarding) {
         setShowOnboarding(true);
       }
-    };
-    load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboard();
   }, [navigate]);
 
   const handleAcceptAgreement = () => {
@@ -187,6 +198,14 @@ const Dashboard = () => {
       <div className="flex items-center justify-between px-4 pt-5">
         <CurrencySelector />
         <div className="flex gap-3">
+          <button
+            onClick={loadDashboard}
+            aria-label="Refresh dashboard"
+            className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-5 w-5 text-foreground ${refreshing ? "animate-spin" : ""}`} />
+          </button>
           <button onClick={() => navigate("/notifications")} aria-label="Open notifications" className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full">
             <Bell className="h-5 w-5 text-foreground" />
           </button>

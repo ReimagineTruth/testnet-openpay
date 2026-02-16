@@ -100,6 +100,7 @@ const NotificationsPage = () => {
           description: `${ticket.subject} · ${ticket.status.replace("_", " ")}`,
           createdAt: ticket.created_at,
         });
+      });
 
       if (walletRes.data?.welcome_bonus_claimed_at) {
         notifications.push({
@@ -109,6 +110,7 @@ const NotificationsPage = () => {
           createdAt: walletRes.data.welcome_bonus_claimed_at,
         });
       }
+
       });
 
       notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
