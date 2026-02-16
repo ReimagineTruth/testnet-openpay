@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import BrandLogo from "@/components/BrandLogo";
@@ -9,6 +9,7 @@ const PiAuthPage = () => {
   const [piUser, setPiUser] = useState<{ uid: string; username: string } | null>(null);
   const [busyAuth, setBusyAuth] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const sdkReady = typeof window !== "undefined" && !!window.Pi;
   const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
@@ -32,7 +33,7 @@ const PiAuthPage = () => {
     checkSession();
   }, [navigate]);
 
-  const signInPiBackedAccount = async (piUid: string, piUsername: string) => {
+  const signInPiBackedAccount = async (piUid: string, piUsername: string, referralCode?: string) => {
     const piEmail = `pi_${piUid}@openpay.local`;
     const piPassword = `OpenPay-Pi-${piUid}-v1!`;
     const piSignupUsername = `pi_${piUid.replace(/-/g, "").slice(0, 16)}`;
@@ -62,6 +63,7 @@ const PiAuthPage = () => {
           data: {
             full_name: piUsername,
             username: piSignupUsername,
+            referral_code: referralCode,
             pi_uid: piUid,
             pi_username: piUsername,
             pi_connected_at: new Date().toISOString(),
@@ -111,11 +113,12 @@ const PiAuthPage = () => {
     if (!initPi() || !window.Pi) return;
     setBusyAuth(true);
     try {
+      const referralCode = (searchParams.get("ref") || "").trim().toLowerCase();
       const auth = await window.Pi.authenticate(["username"]);
       const verified = await verifyPiAccessToken(auth.accessToken);
       const username = verified.username || auth.user.username;
 
-      await signInPiBackedAccount(verified.uid, username);
+      await signInPiBackedAccount(verified.uid, username, referralCode || undefined);
 
       // Ensure current authenticated user has latest Pi metadata.
       const {
@@ -164,6 +167,11 @@ const PiAuthPage = () => {
             <p className="mt-1 text-sm text-muted-foreground">
               Connect your Pi account.
             </p>
+            {!!searchParams.get("ref") && (
+              <p className="mt-1 text-xs text-paypal-blue">
+                Referral code detected: {(searchParams.get("ref") || "").trim().toLowerCase()}
+              </p>
+            )}
             {!sdkReady && (
               <p className="mt-1 text-xs text-destructive">
                 Pi SDK is unavailable. Please open this app in Pi Browser.

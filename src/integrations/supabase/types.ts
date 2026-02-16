@@ -256,6 +256,8 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          referral_code: string
+          referred_by_user_id: string | null
           username: string | null
         }
         Insert: {
@@ -263,6 +265,8 @@ export type Database = {
           created_at?: string
           full_name?: string
           id: string
+          referral_code?: string
+          referred_by_user_id?: string | null
           username?: string | null
         }
         Update: {
@@ -270,7 +274,39 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          referral_code?: string
+          referred_by_user_id?: string | null
           username?: string | null
+        }
+        Relationships: []
+      }
+      referral_rewards: {
+        Row: {
+          claimed_at: string | null
+          created_at: string
+          id: string
+          referred_user_id: string
+          referrer_user_id: string
+          reward_amount: number
+          status: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          referred_user_id: string
+          referrer_user_id: string
+          reward_amount?: number
+          status?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string
+          id?: string
+          referred_user_id?: string
+          referrer_user_id?: string
+          reward_amount?: number
+          status?: string
         }
         Relationships: []
       }
@@ -373,18 +409,21 @@ export type Database = {
           id: string
           updated_at: string
           user_id: string
+          welcome_bonus_claimed_at: string | null
         }
         Insert: {
           balance?: number
           id?: string
           updated_at?: string
           user_id: string
+          welcome_bonus_claimed_at?: string | null
         }
         Update: {
           balance?: number
           id?: string
           updated_at?: string
           user_id?: string
+          welcome_bonus_claimed_at?: string | null
         }
         Relationships: []
       }
@@ -403,6 +442,14 @@ export type Database = {
           p_reason?: string
           p_transaction_id: string
         }
+        Returns: Json
+      }
+      claim_welcome_bonus: {
+        Args: never
+        Returns: Json
+      }
+      claim_referral_rewards: {
+        Args: never
         Returns: Json
       }
       is_transaction_participant: {

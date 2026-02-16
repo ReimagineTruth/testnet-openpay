@@ -64,6 +64,8 @@ const SendMoney = () => {
   const [scanError, setScanError] = useState("");
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+  const [myFullName, setMyFullName] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currencies, currency, setCurrency, format: formatCurrency } = useCurrency();
@@ -76,6 +78,14 @@ const SendMoney = () => {
       const { data: wallet } = await supabase
         .from("wallets").select("balance").eq("user_id", user.id).single();
       setBalance(wallet?.balance || 0);
+
+      const { data: myProfile } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url")
+        .eq("id", user.id)
+        .single();
+      setMyAvatarUrl(myProfile?.avatar_url || null);
+      setMyFullName(myProfile?.full_name || "");
 
       const { data: contactRows } = await supabase
         .from("contacts").select("contact_id").eq("user_id", user.id);
@@ -367,9 +377,17 @@ const SendMoney = () => {
 
         {selectedUser && (
           <div className="mt-6 flex items-center gap-3 rounded-2xl bg-secondary/80 px-3 py-2.5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
-              <span className="text-sm font-bold text-primary-foreground">{getInitials(selectedUser.full_name)}</span>
-            </div>
+            {selectedUser.avatar_url ? (
+              <img
+                src={selectedUser.avatar_url}
+                alt={selectedUser.full_name}
+                className="h-12 w-12 rounded-full border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
+                <span className="text-sm font-bold text-primary-foreground">{getInitials(selectedUser.full_name)}</span>
+              </div>
+            )}
             <div>
               <p className="font-semibold text-foreground">{selectedUser.full_name}</p>
               {selectedUser.username && <p className="text-sm text-muted-foreground">@{selectedUser.username}</p>}
@@ -458,6 +476,17 @@ const SendMoney = () => {
   return (
     <div className="min-h-screen bg-background px-4 pt-4">
       <div className="flex items-center gap-3">
+        {myAvatarUrl ? (
+          <img
+            src={myAvatarUrl}
+            alt={myFullName || "Profile"}
+            className="h-10 w-10 rounded-full border border-border object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-paypal-dark">
+            <span className="text-xs font-bold text-primary-foreground">{getInitials(myFullName || "OpenPay User")}</span>
+          </div>
+        )}
         <button onClick={() => navigate("/dashboard")}><ArrowLeft className="w-6 h-6 text-foreground" /></button>
         <div className="flex-1">
           <Input placeholder="Name, username or email" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
