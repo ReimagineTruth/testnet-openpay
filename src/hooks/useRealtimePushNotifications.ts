@@ -32,6 +32,8 @@ export const useRealtimePushNotifications = () => {
     let isMounted = true;
 
     const bootstrap = async () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
       const {
         data: { user },
       } = await supabase.auth.getUser();

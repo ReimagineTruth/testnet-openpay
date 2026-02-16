@@ -1,5 +1,5 @@
 ﻿import { useState } from "react";
-import { currencies, useCurrency } from "@/contexts/CurrencyContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { ChevronDown, Search } from "lucide-react";
 import {
   Dialog,
@@ -11,8 +11,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+const emojiFlagStyle = {
+  fontFamily: "\"Segoe UI Emoji\", \"Apple Color Emoji\", \"Noto Color Emoji\", sans-serif",
+};
+
 const CurrencySelector = () => {
-  const { currency, setCurrency } = useCurrency();
+  const { currencies, currency, setCurrency } = useCurrency();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
@@ -31,7 +35,7 @@ const CurrencySelector = () => {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-sm font-medium border border-border hover:bg-accent transition-colors">
-          <span className="text-lg leading-none">{currency.flag}</span>
+          <span className="text-lg leading-none" style={emojiFlagStyle}>{currency.flag}</span>
           <span>{getPiCodeLabel(currency.code)}</span>
           <ChevronDown className="w-3.5 h-3.5 opacity-60" />
         </button>
@@ -67,7 +71,7 @@ const CurrencySelector = () => {
                     : "hover:bg-muted text-foreground"
                 }`}
               >
-                <span className="text-2xl leading-none">{c.flag}</span>
+                <span className="text-2xl leading-none" style={emojiFlagStyle}>{c.flag}</span>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{getPiCodeLabel(c.code)}</p>
                   <p className="text-xs text-muted-foreground truncate">{getPiNameLabel(c.code, c.name)}</p>

@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.admin-dashboard]
 verify_jwt = false
+
+[functions.fx-rates-sync]
+verify_jwt = false

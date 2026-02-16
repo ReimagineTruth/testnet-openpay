@@ -32,6 +32,7 @@ const MenuPage = () => {
       title: "Manage finances",
       items: [
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
+        { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
         { icon: Activity, label: "Activity", action: () => navigate("/activity") },
         { icon: Clapperboard, label: "Pi Ad Network", action: () => navigate("/pi-ads") },
       ],

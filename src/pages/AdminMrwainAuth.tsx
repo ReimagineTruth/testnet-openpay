@@ -22,6 +22,11 @@ const AdminMrwainAuth = () => {
   };
 
   const handleGoogle = async () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("No internet connection. Please reconnect and try again.");
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -33,6 +38,12 @@ const AdminMrwainAuth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("No internet connection. Please reconnect and try again.");
+      return;
+    }
+
     setLoading(true);
 
     if (mode === "signin") {

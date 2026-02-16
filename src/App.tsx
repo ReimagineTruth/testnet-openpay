@@ -10,6 +10,7 @@ import SendMoney from "./pages/SendMoney";
 import TopUp from "./pages/TopUp";
 import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
+import CurrencyConverterPage from "./pages/CurrencyConverterPage";
 import ActivityPage from "./pages/ActivityPage";
 import RequestMoney from "./pages/RequestMoney";
 import DisputesPage from "./pages/DisputesPage";
@@ -40,7 +41,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<PiAuthPage />} />
@@ -54,6 +55,7 @@ const App = () => {
               <Route path="/topup" element={<TopUp />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/menu" element={<MenuPage />} />
+              <Route path="/currency-converter" element={<CurrencyConverterPage />} />
               <Route path="/activity" element={<ActivityPage />} />
               <Route path="/request-money" element={<RequestMoney />} />
               <Route path="/send-invoice" element={<SendInvoice />} />
