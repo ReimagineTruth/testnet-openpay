@@ -143,7 +143,7 @@ const RequestMoney = () => {
             const scannedUserId = extractUserIdFromQr(decodedText);
             if (scanner) {
               await scanner.stop().catch(() => undefined);
-              await scanner.clear().catch(() => undefined);
+              scanner.clear();
             }
             setShowScanner(false);
 
@@ -171,7 +171,7 @@ const RequestMoney = () => {
       if (scanner) {
         const s = scanner;
         s.stop().catch(() => undefined);
-        s.clear().catch(() => undefined);
+        s.clear();
       }
     };
   }, [navigate, showScanner, userId]);
