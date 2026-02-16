@@ -1,18 +1,90 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
+
 const MenuPage = () => {
   const navigate = useNavigate();
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const [welcomeClaimedAt, setWelcomeClaimedAt] = useState<string | null>(null);
+  const [claimingWelcome, setClaimingWelcome] = useState(false);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+      setCanInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  useEffect(() => {
+    const loadWelcomeStatus = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: wallet } = await supabase
+        .from("wallets")
+        .select("welcome_bonus_claimed_at")
+        .eq("user_id", user.id)
+        .single();
+      setWelcomeClaimedAt(wallet?.welcome_bonus_claimed_at || null);
+    };
+    loadWelcomeStatus();
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    setCanInstall(choice.outcome === "accepted" ? false : true);
+    if (choice.outcome === "accepted") setInstallPrompt(null);
+  };
 
   const handleLogout = async () => {
     clearAllAppSecurityUnlocks();
     await supabase.auth.signOut();
     toast.success("Logged out");
     navigate("/auth");
+  };
+
+  const handleClaimWelcome = async () => {
+    setClaimingWelcome(true);
+    const { data, error } = await supabase.rpc("claim_welcome_bonus");
+    setClaimingWelcome(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const claimed = (data as { claimed?: boolean } | null)?.claimed;
+    if (claimed) {
+      toast.success("Welcome bonus claimed");
+    } else {
+      toast.message("Welcome bonus already claimed");
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: wallet } = await supabase
+      .from("wallets")
+      .select("welcome_bonus_claimed_at")
+      .eq("user_id", user.id)
+      .single();
+    setWelcomeClaimedAt(wallet?.welcome_bonus_claimed_at || null);
   };
 
   const sections = [
@@ -42,15 +114,34 @@ const MenuPage = () => {
       ],
     },
     {
+      title: "Rewards",
+      items: [
+        {
+          icon: CircleDollarSign,
+          label: welcomeClaimedAt ? "Welcome bonus claimed" : "Claim $1 welcome bonus",
+          action: () => handleClaimWelcome(),
+          disabled: Boolean(welcomeClaimedAt) || claimingWelcome,
+          subtitle: welcomeClaimedAt ? "Already redeemed" : "One-time reward",
+        },
+      ],
+    },
+    {
       title: "Get support",
       items: [
         { icon: ShieldAlert, label: "Disputes", action: () => navigate("/disputes") },
         { icon: HelpCircle, label: "Help Center", action: () => navigate("/help-center") },
+        { icon: Megaphone, label: "Announcements", action: () => navigate("/announcements") },
         { icon: Store, label: "Where to use OpenPay", action: () => navigate("/openpay-guide") },
         { icon: Info, label: "About OpenPay", action: () => navigate("/about-openpay") },
         { icon: FileCheck, label: "Terms", action: () => navigate("/terms") },
         { icon: Lock, label: "Privacy", action: () => navigate("/privacy") },
         { icon: Scale, label: "Legal", action: () => navigate("/legal") },
+      ],
+    },
+    {
+      title: "Install OpenPay",
+      items: [
+        { icon: Download, label: canInstall ? "Install OpenPay" : "Install not available", action: () => handleInstall(), disabled: !canInstall },
       ],
     },
   ];
@@ -63,14 +154,20 @@ const MenuPage = () => {
           <div key={section.title} className="mb-6">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{section.title}</h2>
             <div className="paypal-surface overflow-hidden rounded-2xl">
-            {section.items.map(({ icon: Icon, label, action }) => (
+            {section.items.map(({ icon: Icon, label, action, subtitle, disabled }) => (
               <button
                 key={label}
                 onClick={action}
-                className="flex w-full items-center gap-4 border-b border-border/60 px-3 py-3.5 text-left last:border-b-0 hover:bg-secondary/60 transition"
+                className={`flex w-full items-center gap-4 border-b border-border/60 px-3 py-3.5 text-left last:border-b-0 transition ${
+                  disabled ? "opacity-60 cursor-not-allowed" : "hover:bg-secondary/60"
+                }`}
+                disabled={disabled}
               >
                 <Icon className="h-5 w-5 text-paypal-blue" />
-                <span className="text-foreground font-medium">{label}</span>
+                <div>
+                  <span className="text-foreground font-medium">{label}</span>
+                  {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+                </div>
               </button>
             ))}
             </div>

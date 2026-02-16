@@ -23,6 +23,7 @@ import ProfilePage from "./pages/ProfilePage";
 import AffiliatePage from "./pages/AffiliatePage";
 import OpenPayGuidePage from "./pages/OpenPayGuidePage";
 import PublicLedgerPage from "./pages/PublicLedgerPage";
+import AnnouncementsPage from "./pages/AnnouncementsPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import AboutOpenPayPage from "./pages/AboutOpenPayPage";
@@ -72,6 +73,7 @@ const App = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/affiliate" element={<AffiliatePage />} />
               <Route path="/ledger" element={<PublicLedgerPage />} />
+              <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/openpay-guide" element={<OpenPayGuidePage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/privacy" element={<PrivacyPage />} />

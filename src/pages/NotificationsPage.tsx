@@ -26,7 +26,7 @@ const NotificationsPage = () => {
         return;
       }
 
-      const [transactionsRes, requestsRes, invoicesRes, ticketsRes] = await Promise.all([
+      const [transactionsRes, requestsRes, invoicesRes, ticketsRes, walletRes] = await Promise.all([
         supabase
           .from("transactions")
           .select("id, sender_id, receiver_id, amount, created_at")
@@ -51,6 +51,11 @@ const NotificationsPage = () => {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(5),
+        supabase
+          .from("wallets")
+          .select("welcome_bonus_claimed_at")
+          .eq("user_id", user.id)
+          .single(),
       ]);
 
       const notifications: NotificationItem[] = [];
@@ -95,6 +100,15 @@ const NotificationsPage = () => {
           description: `${ticket.subject} · ${ticket.status.replace("_", " ")}`,
           createdAt: ticket.created_at,
         });
+
+      if (walletRes.data?.welcome_bonus_claimed_at) {
+        notifications.push({
+          id: `welcome-${user.id}`,
+          title: "Welcome bonus claimed",
+          description: "+$1.00 added to your balance",
+          createdAt: walletRes.data.welcome_bonus_claimed_at,
+        });
+      }
       });
 
       notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

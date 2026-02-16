@@ -34,6 +34,12 @@ const ActivityPage = () => {
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .order("created_at", { ascending: false });
 
+      const { data: wallet } = await supabase
+        .from("wallets")
+        .select("welcome_bonus_claimed_at")
+        .eq("user_id", user.id)
+        .single();
+
       if (txs) {
         const enriched = await Promise.all(txs.map(async (tx) => {
           const otherId = tx.sender_id === user.id ? tx.receiver_id : tx.sender_id;
@@ -49,7 +55,21 @@ const ActivityPage = () => {
             is_topup: tx.sender_id === user.id && tx.receiver_id === user.id,
           };
         }));
-        setTransactions(enriched);
+        const bonusTx = wallet?.welcome_bonus_claimed_at
+          ? [{
+              id: `welcome-${user.id}`,
+              sender_id: user.id,
+              receiver_id: user.id,
+              amount: 1,
+              note: "Welcome bonus",
+              status: "completed",
+              created_at: wallet.welcome_bonus_claimed_at,
+              other_name: "OpenPay",
+              is_sent: false,
+              is_topup: true,
+            }]
+          : [];
+        setTransactions([...bonusTx, ...enriched]);
       }
     };
     load();
