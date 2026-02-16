@@ -174,6 +174,7 @@ const Dashboard = () => {
       <div className="fixed bottom-24 left-0 right-0 px-4 pb-1">
         <div className="flex gap-3">
           <button onClick={() => navigate("/send")} className="flex-1 rounded-full bg-paypal-blue py-3.5 text-center font-semibold text-white shadow-lg shadow-[#0057d8]/30">Pay</button>
+          <button onClick={() => navigate("/receive")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Receive</button>
           <button onClick={() => navigate("/topup")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Top Up</button>
         </div>
       </div>

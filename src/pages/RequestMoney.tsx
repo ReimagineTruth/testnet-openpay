@@ -130,35 +130,82 @@ const RequestMoney = () => {
     let isDone = false;
     setScanError("");
 
-    const startScanner = async () => {
-      scanner = new Html5Qrcode("openpay-receive-scanner");
+    const stopScanner = async () => {
+      if (!scanner) return;
       try {
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
-          async (decodedText) => {
-            if (isDone) return;
-            isDone = true;
+        if (scanner.isScanning) {
+          await scanner.stop();
+        }
+      } catch {
+        // no-op
+      }
+      try {
+        scanner.clear();
+      } catch {
+        // no-op
+      }
+    };
 
-            const scannedUserId = extractUserIdFromQr(decodedText);
-            if (scanner) {
-              await scanner.stop().catch(() => undefined);
-              scanner.clear();
-            }
-            setShowScanner(false);
+    const startScanner = async () => {
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        setScanError("Camera needs HTTPS (or localhost) to work.");
+        return;
+      }
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        setScanError("Camera API is not available on this device/browser.");
+        return;
+      }
 
-            if (!scannedUserId) {
-              toast.error("Invalid QR code");
-              return;
-            }
-            if (scannedUserId === userId) {
-              toast.error("You scanned your own QR code");
-              return;
-            }
-            navigate(`/send?to=${scannedUserId}`);
-          },
-          () => undefined,
+      scanner = new Html5Qrcode("openpay-receive-scanner");
+      const onDecoded = async (decodedText: string) => {
+        if (isDone) return;
+        isDone = true;
+
+        const scannedUserId = extractUserIdFromQr(decodedText);
+        await stopScanner();
+        setShowScanner(false);
+
+        if (!scannedUserId) {
+          toast.error("Invalid QR code");
+          return;
+        }
+        if (scannedUserId === userId) {
+          toast.error("You scanned your own QR code");
+          return;
+        }
+        navigate(`/send?to=${scannedUserId}`);
+      };
+
+      const scanConfig = { fps: 10, qrbox: { width: 220, height: 220 } };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        const preferredBack = cameras.find((cam) =>
+          /(back|rear|environment)/i.test(cam.label || ""),
         );
+
+        const sources: Array<string | MediaTrackConstraints> = [];
+        if (preferredBack?.id) sources.push(preferredBack.id);
+        if (cameras[0]?.id) sources.push(cameras[0].id);
+        sources.push({ facingMode: { exact: "environment" } });
+        sources.push({ facingMode: "environment" });
+        sources.push({ facingMode: "user" });
+
+        let started = false;
+        let startError = "";
+
+        for (const source of sources) {
+          try {
+            await scanner.start(source, scanConfig, onDecoded, () => undefined);
+            started = true;
+            break;
+          } catch (error) {
+            startError = error instanceof Error ? error.message : "Unable to start camera";
+          }
+        }
+
+        if (!started) {
+          setScanError(startError || "Unable to start camera");
+        }
       } catch (error) {
         setScanError(error instanceof Error ? error.message : "Unable to start camera");
       }
@@ -168,11 +215,7 @@ const RequestMoney = () => {
 
     return () => {
       isDone = true;
-      if (scanner) {
-        const s = scanner;
-        s.stop().catch(() => undefined);
-        s.clear();
-      }
+      stopScanner();
     };
   }, [navigate, showScanner, userId]);
 
@@ -391,6 +434,7 @@ const RequestMoney = () => {
           <div id="openpay-receive-scanner" className="min-h-[260px] overflow-hidden rounded-2xl border border-border" />
           {scanError && <p className="text-sm text-red-500">{scanError}</p>}
           <p className="text-xs text-muted-foreground">Point your camera at an OpenPay receive QR code.</p>
+          <p className="text-xs text-muted-foreground">If camera does not open in Pi Browser, enable camera permission for this app and retry.</p>
         </DialogContent>
       </Dialog>
     </div>

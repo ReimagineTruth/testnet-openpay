@@ -8,6 +8,7 @@ import AdminMrwainAuth from "./pages/AdminMrwainAuth";
 import Dashboard from "./pages/Dashboard";
 import SendMoney from "./pages/SendMoney";
 import TopUp from "./pages/TopUp";
+import ReceivePage from "./pages/ReceivePage";
 import Contacts from "./pages/Contacts";
 import MenuPage from "./pages/MenuPage";
 import CurrencyConverterPage from "./pages/CurrencyConverterPage";
@@ -29,6 +30,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
+import AppSecurityGate from "./components/AppSecurityGate";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +55,7 @@ const App = () => {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/send" element={<SendMoney />} />
               <Route path="/topup" element={<TopUp />} />
+              <Route path="/receive" element={<ReceivePage />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/menu" element={<MenuPage />} />
               <Route path="/currency-converter" element={<CurrencyConverterPage />} />
@@ -70,6 +73,7 @@ const App = () => {
               <Route path="/legal" element={<LegalPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <AppSecurityGate />
           </BrowserRouter>
         </TooltipProvider>
       </CurrencyProvider>

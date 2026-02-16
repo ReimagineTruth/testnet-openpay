@@ -40,6 +40,7 @@ const CurrencyConverterPage = () => {
     setFromCode(toCode);
     setToCode(fromCode);
   };
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -70,7 +71,7 @@ const CurrencyConverterPage = () => {
               >
                 {currencies.map((currency) => (
                   <option key={currency.code} value={currency.code}>
-                    {currency.flag} {currency.code} - {currency.name}
+                    {currency.flag} {getPiCodeLabel(currency.code)} - {currency.name}
                   </option>
                 ))}
               </select>
@@ -89,7 +90,7 @@ const CurrencyConverterPage = () => {
               >
                 {currencies.map((currency) => (
                   <option key={currency.code} value={currency.code}>
-                    {currency.flag} {currency.code} - {currency.name}
+                    {currency.flag} {getPiCodeLabel(currency.code)} - {currency.name}
                   </option>
                 ))}
               </select>
