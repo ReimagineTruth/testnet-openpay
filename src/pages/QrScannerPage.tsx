@@ -39,6 +39,7 @@ const QrScannerPage = () => {
   const [showInstructions, setShowInstructions] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const handlingDecodeRef = useRef(false);
 
   const returnTo = useMemo(() => {
     const requested = searchParams.get("returnTo") || "/send";
@@ -62,10 +63,14 @@ const QrScannerPage = () => {
   };
 
   const handleDecoded = async (decodedText: string) => {
+    if (handlingDecodeRef.current) return;
+    handlingDecodeRef.current = true;
+
     const payload = extractQrPayload(decodedText);
     await stopScanner();
     if (!payload.uid) {
       toast.error("Invalid QR code");
+      handlingDecodeRef.current = false;
       return;
     }
 
@@ -89,8 +94,23 @@ const QrScannerPage = () => {
 
   useEffect(() => {
     let mounted = true;
+    handlingDecodeRef.current = false;
+
+    const waitForScannerElement = async () => {
+      if (typeof document === "undefined") return false;
+      for (let i = 0; i < 12; i += 1) {
+        if (document.getElementById("openpay-full-scanner")) return true;
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      return false;
+    };
 
     const startScanner = async () => {
+      const hasScannerElement = await waitForScannerElement();
+      if (!hasScannerElement) {
+        if (mounted) setScanError("Scanner failed to mount. Please retry.");
+        return;
+      }
       if (typeof window !== "undefined" && !window.isSecureContext) {
         if (mounted) setScanError("Camera requires HTTPS (or localhost).");
         return;
@@ -100,20 +120,40 @@ const QrScannerPage = () => {
         return;
       }
 
-      const scanner = new Html5Qrcode("openpay-full-scanner");
+      const scanner = new Html5Qrcode("openpay-full-scanner", {
+        useBarCodeDetectorIfSupported: true,
+      });
       scannerRef.current = scanner;
 
       try {
-        const cameras = await Html5Qrcode.getCameras();
+        let cameras: Awaited<ReturnType<typeof Html5Qrcode.getCameras>> = [];
+        try {
+          cameras = await Html5Qrcode.getCameras();
+        } catch {
+          // Some browsers block camera enumeration until stream opens. Keep fallback sources.
+        }
         const preferredBack = cameras.find((cam) => /(back|rear|environment)/i.test(cam.label || ""));
         const sources: Array<string | MediaTrackConstraints> = [];
         if (preferredBack?.id) sources.push(preferredBack.id);
         if (cameras[0]?.id) sources.push(cameras[0].id);
         sources.push({ facingMode: { exact: "environment" } });
+        sources.push({ facingMode: { ideal: "environment" } });
         sources.push({ facingMode: "environment" });
         sources.push({ facingMode: "user" });
 
-        const scanConfig = { fps: 10 };
+        const scanConfig = {
+          fps: 12,
+          disableFlip: true,
+          aspectRatio:
+            typeof window !== "undefined" && window.innerHeight > 0
+              ? window.innerWidth / window.innerHeight
+              : undefined,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const box = Math.max(180, Math.floor(minEdge * 0.68));
+            return { width: box, height: box };
+          },
+        };
 
         let started = false;
         let startError = "";
@@ -220,7 +260,8 @@ const QrScannerPage = () => {
         <div id="openpay-full-scanner" className="absolute inset-0" />
         <div className={`absolute inset-0 ${scanning ? "bg-black/25" : "bg-black/60"} transition`} />
 
-        <div className="relative z-10 flex h-full flex-col px-5 pt-4 pb-6">
+        <div className="relative z-10 h-[100dvh] overflow-y-auto overflow-x-hidden px-5 pt-4 pb-8">
+          <div className="mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate(returnTo)}
@@ -298,6 +339,7 @@ const QrScannerPage = () => {
                 Use Pasted Code
               </button>
             </div>
+          </div>
           </div>
         </div>
       </div>

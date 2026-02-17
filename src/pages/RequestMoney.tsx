@@ -172,7 +172,9 @@ const RequestMoney = () => {
         return;
       }
 
-      scanner = new Html5Qrcode("openpay-receive-scanner");
+      scanner = new Html5Qrcode("openpay-receive-scanner", {
+        useBarCodeDetectorIfSupported: true,
+      });
       const onDecoded = async (decodedText: string) => {
         if (isDone) return;
         isDone = true;
@@ -192,9 +194,26 @@ const RequestMoney = () => {
         navigate(`/send?to=${scannedUserId}`);
       };
 
-      const scanConfig = { fps: 10, qrbox: { width: 220, height: 220 } };
+      const scanConfig = {
+        fps: 12,
+        disableFlip: true,
+        aspectRatio:
+          typeof window !== "undefined" && window.innerHeight > 0
+            ? window.innerWidth / window.innerHeight
+            : undefined,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const box = Math.max(180, Math.floor(minEdge * 0.68));
+          return { width: box, height: box };
+        },
+      };
       try {
-        const cameras = await Html5Qrcode.getCameras();
+        let cameras: Awaited<ReturnType<typeof Html5Qrcode.getCameras>> = [];
+        try {
+          cameras = await Html5Qrcode.getCameras();
+        } catch {
+          // Some browsers block camera enumeration until stream opens. Keep fallback sources.
+        }
         const preferredBack = cameras.find((cam) =>
           /(back|rear|environment)/i.test(cam.label || ""),
         );
@@ -203,6 +222,7 @@ const RequestMoney = () => {
         if (preferredBack?.id) sources.push(preferredBack.id);
         if (cameras[0]?.id) sources.push(cameras[0].id);
         sources.push({ facingMode: { exact: "environment" } });
+        sources.push({ facingMode: { ideal: "environment" } });
         sources.push({ facingMode: "environment" });
         sources.push({ facingMode: "user" });
 
