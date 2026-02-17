@@ -62,6 +62,16 @@ const QrScannerPage = () => {
     }
   };
 
+  const patchVideoElementForMobile = () => {
+    if (typeof document === "undefined") return;
+    const video = document.querySelector("#openpay-full-scanner video") as HTMLVideoElement | null;
+    if (!video) return;
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+    video.setAttribute("autoplay", "true");
+    video.setAttribute("muted", "true");
+  };
+
   const handleDecoded = async (decodedText: string) => {
     if (handlingDecodeRef.current) return;
     handlingDecodeRef.current = true;
@@ -121,7 +131,7 @@ const QrScannerPage = () => {
       }
 
       const scanner = new Html5Qrcode("openpay-full-scanner", {
-        useBarCodeDetectorIfSupported: true,
+        useBarCodeDetectorIfSupported: false,
       });
       scannerRef.current = scanner;
 
@@ -134,20 +144,16 @@ const QrScannerPage = () => {
         }
         const preferredBack = cameras.find((cam) => /(back|rear|environment)/i.test(cam.label || ""));
         const sources: Array<string | MediaTrackConstraints> = [];
-        if (preferredBack?.id) sources.push(preferredBack.id);
-        if (cameras[0]?.id) sources.push(cameras[0].id);
         sources.push({ facingMode: { exact: "environment" } });
         sources.push({ facingMode: { ideal: "environment" } });
         sources.push({ facingMode: "environment" });
+        if (preferredBack?.id) sources.push(preferredBack.id);
+        if (cameras[0]?.id) sources.push(cameras[0].id);
         sources.push({ facingMode: "user" });
 
         const scanConfig = {
           fps: 12,
-          disableFlip: true,
-          aspectRatio:
-            typeof window !== "undefined" && window.innerHeight > 0
-              ? window.innerWidth / window.innerHeight
-              : undefined,
+          disableFlip: false,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
             const box = Math.max(180, Math.floor(minEdge * 0.68));
@@ -162,8 +168,12 @@ const QrScannerPage = () => {
             await scanner.start(source, scanConfig, (decodedText) => {
               void handleDecoded(decodedText);
             }, () => undefined);
+            patchVideoElementForMobile();
             started = true;
-            if (mounted) setScanning(true);
+            if (mounted) {
+              setScanError("");
+              setScanning(true);
+            }
             break;
           } catch (error) {
             startError = error instanceof Error ? error.message : "Unable to open camera";

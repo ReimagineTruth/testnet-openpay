@@ -124,10 +124,21 @@ const SendMoney = () => {
     load();
   }, [currencies, navigate, searchParams, setCurrency]);
 
-  const filtered = searchQuery
-    ? allUsers.filter(u =>
-        u.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase())))
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const normalizedUsernameSearch = normalizedSearch.startsWith("@")
+    ? normalizedSearch.slice(1)
+    : normalizedSearch;
+
+  const filtered = normalizedSearch
+    ? allUsers.filter((u) => {
+        const fullName = u.full_name.toLowerCase();
+        const username = (u.username || "").toLowerCase();
+        return (
+          fullName.includes(normalizedSearch) ||
+          username.includes(normalizedSearch) ||
+          (normalizedUsernameSearch.length > 0 && username.includes(normalizedUsernameSearch))
+        );
+      })
     : contacts;
 
   const toggleBookmark = async (profile: UserProfile) => {

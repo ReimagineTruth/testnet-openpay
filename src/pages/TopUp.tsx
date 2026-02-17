@@ -3,17 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 const TopUp = () => {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
   const navigate = useNavigate();
   const { currencies } = useCurrency();
   const usdCurrency = currencies.find((c) => c.code === "USD") ?? currencies[0];
@@ -110,6 +112,13 @@ const TopUp = () => {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate("/dashboard")}><ArrowLeft className="h-6 w-6 text-foreground" /></button>
         <h1 className="text-lg font-semibold text-paypal-dark">Top Up</h1>
+        <button
+          onClick={() => setShowInstructions(true)}
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground"
+        >
+          <HelpCircle className="h-4 w-4" />
+          How it works
+        </button>
       </div>
 
       <div className="paypal-surface mt-10 rounded-3xl p-6">
@@ -130,6 +139,30 @@ const TopUp = () => {
         setReceiptOpen(open);
         if (!open) navigate("/dashboard");
       }} receipt={receiptData} />
+
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="rounded-3xl sm:max-w-lg">
+          <DialogTitle className="text-xl font-bold text-foreground">Top Up Instructions</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            OpenPay top up works only with Pi payments.
+          </DialogDescription>
+
+          <div className="rounded-2xl border border-border p-3 text-sm text-foreground">
+            <p>1. You can top up your OpenPay balance only with Pi.</p>
+            <p>2. If you do not have Pi in your wallet, buy Pi in your Pi Wallet onramp first, then top up in OpenPay.</p>
+            <p>3. You can also exchange with another OpenPay user or merchant who accepts real-currency exchange.</p>
+            <p>4. OpenPay top up has no fee from OpenPay.</p>
+            <p>5. A merchant may add an exchange fee, similar to peer-to-peer exchange terms.</p>
+          </div>
+
+          <Button
+            className="h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+            onClick={() => setShowInstructions(false)}
+          >
+            I Understand
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

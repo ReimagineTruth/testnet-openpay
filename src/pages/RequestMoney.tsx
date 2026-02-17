@@ -157,6 +157,16 @@ const RequestMoney = () => {
       }
     };
 
+    const patchVideoElementForMobile = () => {
+      if (typeof document === "undefined") return;
+      const video = document.querySelector("#openpay-receive-scanner video") as HTMLVideoElement | null;
+      if (!video) return;
+      video.setAttribute("playsinline", "true");
+      video.setAttribute("webkit-playsinline", "true");
+      video.setAttribute("autoplay", "true");
+      video.setAttribute("muted", "true");
+    };
+
     const startScanner = async () => {
       const mounted = await waitForScannerElement();
       if (!mounted) {
@@ -173,7 +183,7 @@ const RequestMoney = () => {
       }
 
       scanner = new Html5Qrcode("openpay-receive-scanner", {
-        useBarCodeDetectorIfSupported: true,
+        useBarCodeDetectorIfSupported: false,
       });
       const onDecoded = async (decodedText: string) => {
         if (isDone) return;
@@ -196,11 +206,7 @@ const RequestMoney = () => {
 
       const scanConfig = {
         fps: 12,
-        disableFlip: true,
-        aspectRatio:
-          typeof window !== "undefined" && window.innerHeight > 0
-            ? window.innerWidth / window.innerHeight
-            : undefined,
+        disableFlip: false,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
           const box = Math.max(180, Math.floor(minEdge * 0.68));
@@ -219,11 +225,11 @@ const RequestMoney = () => {
         );
 
         const sources: Array<string | MediaTrackConstraints> = [];
-        if (preferredBack?.id) sources.push(preferredBack.id);
-        if (cameras[0]?.id) sources.push(cameras[0].id);
         sources.push({ facingMode: { exact: "environment" } });
         sources.push({ facingMode: { ideal: "environment" } });
         sources.push({ facingMode: "environment" });
+        if (preferredBack?.id) sources.push(preferredBack.id);
+        if (cameras[0]?.id) sources.push(cameras[0].id);
         sources.push({ facingMode: "user" });
 
         let started = false;
@@ -232,6 +238,8 @@ const RequestMoney = () => {
         for (const source of sources) {
           try {
             await scanner.start(source, scanConfig, onDecoded, () => undefined);
+            patchVideoElementForMobile();
+            setScanError("");
             started = true;
             break;
           } catch (error) {

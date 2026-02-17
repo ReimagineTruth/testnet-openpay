@@ -5,6 +5,7 @@ import BottomNav from "@/components/BottomNav";
 import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
+import { canAccessRemittanceMerchant } from "@/lib/remittanceAccess";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -17,6 +18,7 @@ const MenuPage = () => {
   const [canInstall, setCanInstall] = useState(false);
   const [welcomeClaimedAt, setWelcomeClaimedAt] = useState<string | null>(null);
   const [claimingWelcome, setClaimingWelcome] = useState(false);
+  const [hasRemittanceAccess, setHasRemittanceAccess] = useState(false);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -34,6 +36,13 @@ const MenuPage = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .single();
+      setHasRemittanceAccess(canAccessRemittanceMerchant(user.id, profile?.username || null));
 
       const { data: wallet } = await supabase
         .from("wallets")
@@ -107,6 +116,19 @@ const MenuPage = () => {
       items: [
         { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
+        {
+          icon: Store,
+          label: hasRemittanceAccess ? "Remittance merchant center" : "Remittance merchant center (Coming soon)",
+          action: () => {
+            if (hasRemittanceAccess) {
+              navigate("/remittance-merchant");
+              return;
+            }
+            toast.message("Coming soon");
+          },
+          disabled: !hasRemittanceAccess,
+          subtitle: hasRemittanceAccess ? "Developer access enabled" : "Under development",
+        },
         { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
         { icon: Activity, label: "Activity", action: () => navigate("/activity") },
         { icon: BookOpen, label: "Public ledger", action: () => navigate("/ledger") },

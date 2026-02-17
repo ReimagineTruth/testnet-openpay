@@ -50,6 +50,9 @@ const Dashboard = () => {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [remittanceFeeIncome, setRemittanceFeeIncome] = useState(0);
+  const [remittanceTxCount, setRemittanceTxCount] = useState(0);
+  const [remittanceMonthIncome, setRemittanceMonthIncome] = useState(0);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const onboardingSteps = [
@@ -171,8 +174,19 @@ const Dashboard = () => {
           onboarding_completed: loadedPrefs.onboarding_completed,
           onboarding_step: loadedPrefs.onboarding_step,
         };
+        const remittanceRaw = loadedPrefs.merchant_onboarding_data?.remittance_center;
+        const remittance =
+          remittanceRaw && typeof remittanceRaw === "object" && !Array.isArray(remittanceRaw)
+            ? (remittanceRaw as Record<string, unknown>)
+            : {};
+        setRemittanceFeeIncome(typeof remittance.totalFeeIncome === "number" ? remittance.totalFeeIncome : 0);
+        setRemittanceMonthIncome(typeof remittance.thisMonthFeeIncome === "number" ? remittance.thisMonthFeeIncome : 0);
+        setRemittanceTxCount(typeof remittance.totalRemittanceTxCount === "number" ? remittance.totalRemittanceTxCount : 0);
       } catch {
         // Fallback to local state if SQL preferences are not available yet.
+        setRemittanceFeeIncome(0);
+        setRemittanceMonthIncome(0);
+        setRemittanceTxCount(0);
       }
 
       const hasAcceptedAgreement =
@@ -302,6 +316,25 @@ const Dashboard = () => {
         </div>
       </div>
 
+      <div className="mx-4 mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="paypal-surface rounded-2xl p-3">
+          <p className="text-xs text-muted-foreground">Remittance fee income</p>
+          <p className="mt-1 text-xl font-bold text-foreground">{balanceHidden ? "****" : formatCurrency(remittanceFeeIncome)}</p>
+        </div>
+        <div className="paypal-surface rounded-2xl p-3">
+          <p className="text-xs text-muted-foreground">This month</p>
+          <p className="mt-1 text-xl font-bold text-foreground">{balanceHidden ? "****" : formatCurrency(remittanceMonthIncome)}</p>
+        </div>
+        <button
+          onClick={() => navigate("/remittance-merchant")}
+          className="paypal-surface rounded-2xl p-3 text-left transition hover:bg-secondary/50"
+        >
+          <p className="text-xs text-muted-foreground">Remittance records</p>
+          <p className="mt-1 text-xl font-bold text-foreground">{remittanceTxCount}</p>
+          <p className="text-xs font-medium text-paypal-blue">Manage center</p>
+        </button>
+      </div>
+
       <div className="mt-6 px-4">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold text-paypal-dark">Recent activity</h2>
@@ -367,15 +400,17 @@ const Dashboard = () => {
 
       <Dialog open={showAgreement} onOpenChange={() => undefined}>
         <DialogContent className="rounded-3xl sm:max-w-md">
-          <DialogTitle className="text-xl font-bold text-foreground">OpenPay User Agreement</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-foreground">Platform, User, and Merchant Protection Agreement</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            OpenPay is designed for stable Pi payments between users and businesses. By continuing, you agree to use OpenPay responsibly and lawfully.
+            OpenPay is designed for Pi-powered internal balance transfers. By continuing, you agree to use OpenPay only under the protection rules below.
           </DialogDescription>
           <div className="rounded-2xl border border-border/70 p-3 text-sm text-foreground">
-            <p>1. Verify recipient details before sending.</p>
-            <p>2. Do not use OpenPay for fraud, abuse, or illegal transactions.</p>
-            <p>3. Keep your account and security settings protected.</p>
-            <p>4. Respect merchant terms when paying for goods/services.</p>
+            <p>1. Use OpenPay only to transfer OpenPay balance backed by Pi.</p>
+            <p>2. Do not use OpenPay for external wallet transfers or non-Pi crypto assets.</p>
+            <p>3. Verify recipient and merchant details before every payment.</p>
+            <p>4. Merchants must disclose any deposit/payout exchange fee before transaction confirmation.</p>
+            <p>5. Users and merchants must not use OpenPay for fraud, abuse, or illegal transactions.</p>
+            <p>6. Keep your account and security settings protected at all times.</p>
           </div>
           <label className="flex items-start gap-2 text-sm text-foreground">
             <input
@@ -384,7 +419,7 @@ const Dashboard = () => {
               onChange={(e) => setAgreementChecked(e.target.checked)}
               className="mt-1"
             />
-            I agree to the OpenPay Terms, Privacy Policy, and Legal usage conditions.
+            I agree to the OpenPay Platform, User, and Merchant Protection Agreement, including Pi-only internal OpenPay transfer rules.
           </label>
           <div className="flex items-center justify-between text-xs">
             <Link to="/terms" className="font-medium text-paypal-blue">Terms</Link>
