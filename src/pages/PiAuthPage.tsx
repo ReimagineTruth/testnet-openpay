@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import BrandLogo from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
+import { setAppCookie } from "@/lib/userPreferences";
 
 const PiAuthPage = () => {
   const [piUser, setPiUser] = useState<{ uid: string; username: string } | null>(null);
@@ -33,6 +34,13 @@ const PiAuthPage = () => {
     };
     checkSession();
   }, [navigate]);
+
+  useEffect(() => {
+    const ref = (searchParams.get("ref") || "").trim().toLowerCase();
+    if (ref) {
+      setAppCookie("openpay_last_ref", ref);
+    }
+  }, [searchParams]);
 
   const signInPiBackedAccount = async (piUid: string, piUsername: string, referralCode?: string) => {
     const piEmail = `pi_${piUid}@openpay.local`;

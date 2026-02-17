@@ -15,6 +15,7 @@ import {
   registerBiometricCredential,
   saveAppSecuritySettings,
 } from "@/lib/appSecurity";
+import { loadUserPreferences, upsertUserPreferences } from "@/lib/userPreferences";
 
 const SettingsPage = () => {
   const navigate = useNavigate();
@@ -42,7 +43,8 @@ const SettingsPage = () => {
         return;
       }
       setUserId(user.id);
-      setSecuritySettings(loadAppSecuritySettings(user.id));
+      const localSecurity = loadAppSecuritySettings(user.id);
+      setSecuritySettings(localSecurity);
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -52,6 +54,15 @@ const SettingsPage = () => {
 
       setFullName(profile?.full_name || "");
       setUsername(profile?.username || "");
+
+      try {
+        const prefs = await loadUserPreferences(user.id);
+        const mergedSecurity = { ...prefs.security_settings, ...localSecurity };
+        setSecuritySettings(mergedSecurity);
+        saveAppSecuritySettings(user.id, mergedSecurity);
+      } catch {
+        // Keep local settings when DB preferences are unavailable.
+      }
     };
 
     load();
@@ -92,6 +103,10 @@ const SettingsPage = () => {
       return;
     }
 
+    upsertUserPreferences(userId, {
+      profile_full_name: fullName.trim(),
+      profile_username: username.trim() || null,
+    }).catch(() => undefined);
     toast.success("Settings saved");
   };
 
@@ -111,6 +126,7 @@ const SettingsPage = () => {
     const pinHash = await hashSecret(pin);
     const updated: AppSecuritySettings = { ...securitySettings, pinHash };
     saveAppSecuritySettings(userId, updated);
+    upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
     clearAppSecurityUnlock(userId);
     setSecuritySettings(updated);
     setPin("");
@@ -128,6 +144,7 @@ const SettingsPage = () => {
     const passwordHash = await hashSecret(securityPassword);
     const updated: AppSecuritySettings = { ...securitySettings, passwordHash };
     saveAppSecuritySettings(userId, updated);
+    upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
     clearAppSecurityUnlock(userId);
     setSecuritySettings(updated);
     setSecurityPassword("");
@@ -151,6 +168,7 @@ const SettingsPage = () => {
         biometricCredentialId: credentialId,
       };
       saveAppSecuritySettings(userId, updated);
+      upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
       clearAppSecurityUnlock(userId);
       setSecuritySettings(updated);
       toast.success("Face ID / Fingerprint enabled");
@@ -166,6 +184,7 @@ const SettingsPage = () => {
     const updated: AppSecuritySettings = { ...securitySettings };
     delete updated.pinHash;
     saveAppSecuritySettings(userId, updated);
+    upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
     setSecuritySettings(updated);
     toast.success("PIN security disabled");
   };
@@ -175,6 +194,7 @@ const SettingsPage = () => {
     const updated: AppSecuritySettings = { ...securitySettings };
     delete updated.passwordHash;
     saveAppSecuritySettings(userId, updated);
+    upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
     setSecuritySettings(updated);
     toast.success("Security password disabled");
   };
@@ -184,6 +204,7 @@ const SettingsPage = () => {
     const updated: AppSecuritySettings = { ...securitySettings, biometricEnabled: false };
     delete updated.biometricCredentialId;
     saveAppSecuritySettings(userId, updated);
+    upsertUserPreferences(userId, { security_settings: updated }).catch(() => undefined);
     setSecuritySettings(updated);
     toast.success("Face ID / Fingerprint disabled");
   };

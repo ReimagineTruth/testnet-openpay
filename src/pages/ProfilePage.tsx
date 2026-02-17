@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { upsertUserPreferences } from "@/lib/userPreferences";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -95,6 +96,10 @@ const ProfilePage = () => {
     }
 
     setAvatarUrl(publicUrl);
+    upsertUserPreferences(userId, {
+      profile_full_name: fullName.trim() || null,
+      profile_username: username.trim() || null,
+    }).catch(() => undefined);
     toast.success("Avatar updated");
   };
 
@@ -121,6 +126,10 @@ const ProfilePage = () => {
       return;
     }
 
+    upsertUserPreferences(userId, {
+      profile_full_name: fullName.trim(),
+      profile_username: username.trim() || null,
+    }).catch(() => undefined);
     toast.success("Profile updated");
   };
 

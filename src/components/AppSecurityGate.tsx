@@ -10,8 +10,10 @@ import {
   loadAppSecuritySettings,
   markAppSecurityUnlocked,
   hashSecret,
+  saveAppSecuritySettings,
   verifyBiometricCredential,
 } from "@/lib/appSecurity";
+import { loadUserPreferences } from "@/lib/userPreferences";
 
 const PUBLIC_PATHS = new Set([
   "/",
@@ -64,7 +66,18 @@ const AppSecurityGate = () => {
 
       const currentUserId = user.id;
       setUserId(currentUserId);
-      const loaded = loadAppSecuritySettings(currentUserId);
+      let loaded = loadAppSecuritySettings(currentUserId);
+      if (!hasAnyAppSecurityMethod(loaded)) {
+        try {
+          const prefs = await loadUserPreferences(currentUserId);
+          if (hasAnyAppSecurityMethod(prefs.security_settings)) {
+            loaded = prefs.security_settings;
+            saveAppSecuritySettings(currentUserId, loaded);
+          }
+        } catch {
+          // Keep local-only behavior if preference table is unavailable.
+        }
+      }
       setSettings(loaded);
 
       if (!hasAnyAppSecurityMethod(loaded)) {

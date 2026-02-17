@@ -3,14 +3,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Search, Info, ScanLine, QrCode, Bookmark, BookmarkCheck } from "lucide-react";
+import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import CurrencySelector from "@/components/CurrencySelector";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
-import { Html5Qrcode } from "html5-qrcode";
 
 interface UserProfile {
   id: string;
@@ -22,29 +21,6 @@ interface UserProfile {
 interface RecentRecipient extends UserProfile {
   last_sent_at: string;
 }
-
-const extractQrPayload = (rawValue: string) => {
-  const value = rawValue.trim();
-  if (!value) return { uid: null as string | null, amount: "", currency: "" };
-
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(value)) return { uid: value, amount: "", currency: "" };
-
-  try {
-    const parsed = new URL(value);
-    const uid = parsed.searchParams.get("uid") || parsed.searchParams.get("to");
-    const amount = parsed.searchParams.get("amount") || "";
-    const currencyCode = (parsed.searchParams.get("currency") || "").toUpperCase();
-    return { uid: uid && uuidRegex.test(uid) ? uid : null, amount, currency: currencyCode };
-  } catch {
-    // no-op
-  }
-
-  const maybeUid = value.split("uid=")[1]?.split("&")[0];
-  const maybeAmount = value.split("amount=")[1]?.split("&")[0] || "";
-  const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
-  return { uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null, amount: maybeAmount, currency: maybeCurrency };
-};
 
 const SendMoney = () => {
   const [step, setStep] = useState<"select" | "amount" | "confirm">("select");
@@ -60,8 +36,6 @@ const SendMoney = () => {
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSendConfirm, setShowSendConfirm] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [scanError, setScanError] = useState("");
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
@@ -149,114 +123,6 @@ const SendMoney = () => {
     };
     load();
   }, [currencies, navigate, searchParams, setCurrency]);
-
-  useEffect(() => {
-    if (!showScanner) return;
-
-    let scanner: Html5Qrcode | null = null;
-    let isDone = false;
-    setScanError("");
-
-    const stopScanner = async () => {
-      if (!scanner) return;
-      try {
-        if (scanner.isScanning) {
-          await scanner.stop();
-        }
-      } catch {
-        // no-op
-      }
-      try {
-        scanner.clear();
-      } catch {
-        // no-op
-      }
-    };
-
-    const startScanner = async () => {
-      if (typeof window !== "undefined" && !window.isSecureContext) {
-        setScanError("Camera needs HTTPS (or localhost) to work.");
-        return;
-      }
-      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-        setScanError("Camera API is not available on this device/browser.");
-        return;
-      }
-
-      scanner = new Html5Qrcode("openpay-send-scanner");
-      const onDecoded = async (decodedText: string) => {
-        if (isDone) return;
-        isDone = true;
-
-        const payload = extractQrPayload(decodedText);
-        await stopScanner();
-        setShowScanner(false);
-
-        if (!payload.uid) {
-          toast.error("Invalid QR code");
-          return;
-        }
-
-        const foundUser = allUsers.find((u) => u.id === payload.uid) || contacts.find((u) => u.id === payload.uid);
-        if (!foundUser) {
-          toast.error("User not found");
-          return;
-        }
-
-        if (payload.amount && Number.isFinite(Number(payload.amount)) && Number(payload.amount) > 0) {
-          setAmount(Number(payload.amount).toFixed(2));
-        }
-        if (payload.currency) {
-          const foundCurrency = currencies.find((c) => c.code === payload.currency);
-          if (foundCurrency) setCurrency(foundCurrency);
-        }
-
-        setSelectedUser(foundUser);
-        setStep("amount");
-      };
-
-      const scanConfig = { fps: 10, qrbox: { width: 220, height: 220 } };
-      try {
-        const cameras = await Html5Qrcode.getCameras();
-        const preferredBack = cameras.find((cam) =>
-          /(back|rear|environment)/i.test(cam.label || ""),
-        );
-
-        const sources: Array<string | MediaTrackConstraints> = [];
-        if (preferredBack?.id) sources.push(preferredBack.id);
-        if (cameras[0]?.id) sources.push(cameras[0].id);
-        sources.push({ facingMode: { exact: "environment" } });
-        sources.push({ facingMode: "environment" });
-        sources.push({ facingMode: "user" });
-
-        let started = false;
-        let startError = "";
-
-        for (const source of sources) {
-          try {
-            await scanner.start(source, scanConfig, onDecoded, () => undefined);
-            started = true;
-            break;
-          } catch (error) {
-            startError = error instanceof Error ? error.message : "Unable to start camera";
-          }
-        }
-
-        if (!started) {
-          setScanError(startError || "Unable to start camera");
-        }
-      } catch (error) {
-        setScanError(error instanceof Error ? error.message : "Unable to start camera");
-      }
-    };
-
-    startScanner();
-
-    return () => {
-      isDone = true;
-      stopScanner();
-    };
-  }, [allUsers, contacts, currencies, setCurrency, showScanner]);
 
   const filtered = searchQuery
     ? allUsers.filter(u =>
@@ -369,7 +235,7 @@ const SendMoney = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowScanner(true)}
+              onClick={() => navigate("/scan-qr?returnTo=/send")}
               className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
               aria-label="Scan QR code"
             >
@@ -500,7 +366,7 @@ const SendMoney = () => {
             className="h-12 rounded-full border border-white/70 bg-white pl-4" autoFocus />
         </div>
         <button
-          onClick={() => setShowScanner(true)}
+          onClick={() => navigate("/scan-qr?returnTo=/send")}
           className="paypal-surface flex h-12 items-center gap-2 rounded-full px-3"
           aria-label="Scan QR code"
         >
@@ -597,21 +463,6 @@ const SendMoney = () => {
               <Button onClick={handleConfirmUser} className="mt-4 h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]">Continue</Button>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showScanner} onOpenChange={setShowScanner}>
-        <DialogContent className="max-w-md rounded-3xl">
-          <div className="mb-2 flex items-center gap-2">
-            <QrCode className="h-5 w-5 text-foreground" />
-            <DialogTitle className="text-lg font-semibold text-foreground">Scan QR Code</DialogTitle>
-          </div>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Scan an OpenPay receive QR to fill recipient details.
-          </DialogDescription>
-          <div id="openpay-send-scanner" className="min-h-[260px] overflow-hidden rounded-2xl border border-border" />
-          {scanError && <p className="text-sm text-red-500">{scanError}</p>}
-          <p className="text-xs text-muted-foreground">If camera does not open in Pi Browser, enable camera permission for this app and retry.</p>
         </DialogContent>
       </Dialog>
 

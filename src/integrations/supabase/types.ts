@@ -403,6 +403,54 @@ export type Database = {
         }
         Relationships: []
       }
+      user_preferences: {
+        Row: {
+          created_at: string
+          hide_balance: boolean
+          merchant_onboarding_data: Json
+          onboarding_completed: boolean
+          onboarding_step: number
+          profile_full_name: string | null
+          profile_username: string | null
+          qr_print_settings: Json
+          reference_code: string | null
+          security_settings: Json
+          updated_at: string
+          usage_agreement_accepted: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          hide_balance?: boolean
+          merchant_onboarding_data?: Json
+          onboarding_completed?: boolean
+          onboarding_step?: number
+          profile_full_name?: string | null
+          profile_username?: string | null
+          qr_print_settings?: Json
+          reference_code?: string | null
+          security_settings?: Json
+          updated_at?: string
+          usage_agreement_accepted?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          hide_balance?: boolean
+          merchant_onboarding_data?: Json
+          onboarding_completed?: boolean
+          onboarding_step?: number
+          profile_full_name?: string | null
+          profile_username?: string | null
+          qr_print_settings?: Json
+          reference_code?: string | null
+          security_settings?: Json
+          updated_at?: string
+          usage_agreement_accepted?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           balance: number

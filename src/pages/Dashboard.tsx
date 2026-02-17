@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, Eye, EyeOff, RefreshCw, Settings } from "lucide-react";
+import { Bell, Eye, EyeOff, RefreshCw, Settings, Users } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -11,6 +11,7 @@ import TransactionReceipt, { type ReceiptData } from "@/components/TransactionRe
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { getAppCookie, loadUserPreferences, setAppCookie, upsertUserPreferences } from "@/lib/userPreferences";
 
 interface Transaction {
   id: string;
@@ -92,11 +93,14 @@ const Dashboard = () => {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, username")
+        .select("full_name, username, referral_code")
         .eq("id", user.id)
         .single();
       setUserName(profile?.full_name || "");
       setUsername(profile?.username || null);
+      if (profile?.referral_code) {
+        setAppCookie(`openpay_ref_code_${user.id}`, profile.referral_code);
+      }
 
       const { data: wallet } = await supabase
         .from("wallets")
@@ -151,11 +155,42 @@ const Dashboard = () => {
 
       const agreementKey = `openpay_usage_agreement_v1_${user.id}`;
       const onboardingKey = `openpay_onboarding_done_v1_${user.id}`;
-      const hasAcceptedAgreement = typeof window !== "undefined" && localStorage.getItem(agreementKey) === "1";
-      const hasFinishedOnboarding = typeof window !== "undefined" && localStorage.getItem(onboardingKey) === "1";
       const hideBalanceKey = `openpay_hide_balance_v1_${user.id}`;
-      const hideBalance = typeof window !== "undefined" && localStorage.getItem(hideBalanceKey) === "1";
+      const refCookie = getAppCookie(`openpay_ref_code_${user.id}`) || getAppCookie("openpay_last_ref");
+      let prefs = {
+        hide_balance: false,
+        usage_agreement_accepted: false,
+        onboarding_completed: false,
+        onboarding_step: 0,
+      };
+      try {
+        const loadedPrefs = await loadUserPreferences(user.id);
+        prefs = {
+          hide_balance: loadedPrefs.hide_balance,
+          usage_agreement_accepted: loadedPrefs.usage_agreement_accepted,
+          onboarding_completed: loadedPrefs.onboarding_completed,
+          onboarding_step: loadedPrefs.onboarding_step,
+        };
+      } catch {
+        // Fallback to local state if SQL preferences are not available yet.
+      }
+
+      const hasAcceptedAgreement =
+        prefs.usage_agreement_accepted ||
+        (typeof window !== "undefined" && localStorage.getItem(agreementKey) === "1");
+      const hasFinishedOnboarding =
+        prefs.onboarding_completed ||
+        (typeof window !== "undefined" && localStorage.getItem(onboardingKey) === "1");
+      const hideBalance =
+        prefs.hide_balance ||
+        (typeof window !== "undefined" && localStorage.getItem(hideBalanceKey) === "1");
+
+      if (refCookie && !profile?.referral_code) {
+        await upsertUserPreferences(user.id, { reference_code: refCookie }).catch(() => undefined);
+      }
+
       setBalanceHidden(hideBalance);
+      setOnboardingStep(prefs.onboarding_step || 0);
 
       if (!hasAcceptedAgreement) {
         setShowAgreement(true);
@@ -175,6 +210,8 @@ const Dashboard = () => {
   const handleAcceptAgreement = () => {
     if (!userId || !agreementChecked) return;
     localStorage.setItem(`openpay_usage_agreement_v1_${userId}`, "1");
+    setAppCookie(`openpay_usage_agreement_v1_${userId}`, "1");
+    upsertUserPreferences(userId, { usage_agreement_accepted: true }).catch(() => undefined);
     setShowAgreement(false);
     if (localStorage.getItem(`openpay_onboarding_done_v1_${userId}`) !== "1") {
       setOnboardingStep(0);
@@ -185,6 +222,8 @@ const Dashboard = () => {
   const completeOnboarding = () => {
     if (!userId) return;
     localStorage.setItem(`openpay_onboarding_done_v1_${userId}`, "1");
+    setAppCookie(`openpay_onboarding_done_v1_${userId}`, "1");
+    upsertUserPreferences(userId, { onboarding_completed: true, onboarding_step: onboardingSteps.length - 1 }).catch(() => undefined);
     setShowOnboarding(false);
     setOnboardingStep(0);
   };
@@ -194,6 +233,8 @@ const Dashboard = () => {
     const next = !balanceHidden;
     setBalanceHidden(next);
     localStorage.setItem(`openpay_hide_balance_v1_${userId}`, next ? "1" : "0");
+    setAppCookie(`openpay_hide_balance_v1_${userId}`, next ? "1" : "0");
+    upsertUserPreferences(userId, { hide_balance: next }).catch(() => undefined);
   };
 
   const showReceipt = (tx: Transaction) => {
@@ -308,6 +349,13 @@ const Dashboard = () => {
 
       <div className="fixed bottom-24 left-0 right-0 px-4 pb-1">
         <div className="flex gap-3">
+          <button
+            onClick={() => navigate("/contacts")}
+            className="flex h-[54px] w-[54px] items-center justify-center rounded-full border border-paypal-blue/25 bg-white text-paypal-blue"
+            aria-label="Open contacts"
+          >
+            <Users className="h-6 w-6" />
+          </button>
           <button onClick={() => navigate("/send")} className="flex-1 rounded-full bg-paypal-blue py-3.5 text-center font-semibold text-white shadow-lg shadow-[#0057d8]/30">Pay</button>
           <button onClick={() => navigate("/receive")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Receive</button>
           <button onClick={() => navigate("/topup")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Top Up</button>
@@ -381,7 +429,11 @@ const Dashboard = () => {
             {onboardingStep < onboardingSteps.length - 1 ? (
               <Button
                 className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
-                onClick={() => setOnboardingStep((step) => step + 1)}
+                onClick={() => {
+                  const nextStep = onboardingStep + 1;
+                  setOnboardingStep(nextStep);
+                  if (userId) upsertUserPreferences(userId, { onboarding_step: nextStep }).catch(() => undefined);
+                }}
               >
                 Next
               </Button>

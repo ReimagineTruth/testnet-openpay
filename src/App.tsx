@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import AdminMrwainAuth from "./pages/AdminMrwainAuth";
 import Dashboard from "./pages/Dashboard";
 import SendMoney from "./pages/SendMoney";
+import QrScannerPage from "./pages/QrScannerPage";
 import TopUp from "./pages/TopUp";
 import ReceivePage from "./pages/ReceivePage";
 import Contacts from "./pages/Contacts";
@@ -60,6 +61,7 @@ const App = () => {
               <Route path="/signup" element={<Navigate to="/admin-mrwain?mode=signup" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/send" element={<SendMoney />} />
+              <Route path="/scan-qr" element={<QrScannerPage />} />
               <Route path="/topup" element={<TopUp />} />
               <Route path="/receive" element={<ReceivePage />} />
               <Route path="/contacts" element={<Contacts />} />

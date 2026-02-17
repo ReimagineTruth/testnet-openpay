@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Home, Users, Menu } from "lucide-react";
+import { Home, QrCode, Menu } from "lucide-react";
 
 interface BottomNavProps {
-  active: "home" | "contacts" | "menu";
+  active: "home" | "contacts" | "scan" | "menu";
 }
 
 const BottomNav = ({ active }: BottomNavProps) => {
@@ -10,7 +10,7 @@ const BottomNav = ({ active }: BottomNavProps) => {
 
   const items = [
     { key: "home" as const, label: "Home", icon: Home, path: "/dashboard" },
-    { key: "contacts" as const, label: "Contacts", icon: Users, path: "/contacts" },
+    { key: "scan" as const, label: "Scan QR", icon: QrCode, path: "/scan-qr?returnTo=/send" },
     { key: "menu" as const, label: "Menu", icon: Menu, path: "/menu" },
   ];
 
