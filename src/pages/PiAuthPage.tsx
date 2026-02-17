@@ -46,6 +46,7 @@ const PiAuthPage = () => {
     const piEmail = `pi_${piUid}@openpay.local`;
     const piPassword = `OpenPay-Pi-${piUid}-v1!`;
     const piSignupUsername = `pi_${piUid.replace(/-/g, "").slice(0, 16)}`;
+    let created = false;
 
     const doSignIn = async () => {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -83,12 +84,13 @@ const PiAuthPage = () => {
       if (signUpError && !signUpError.message.toLowerCase().includes("already registered")) {
         throw new Error(signUpError.message || "Failed to create Pi account");
       }
+      if (!signUpError) created = true;
 
       const secondSignIn = await doSignIn();
       if (secondSignIn.error || !secondSignIn.session) {
         throw new Error(secondSignIn.error?.message || "Failed to sign in Pi account");
       }
-      return;
+      return { created };
     }
 
     throw new Error(firstSignIn.error?.message || "Failed to sign in Pi account");
@@ -163,7 +165,7 @@ const PiAuthPage = () => {
       const verified = await verifyPiAccessToken(auth.accessToken);
       const username = verified.username || auth.user.username;
 
-      await signInPiBackedAccount(verified.uid, username, referralCode || undefined);
+      const signInResult = await signInPiBackedAccount(verified.uid, username, referralCode || undefined);
 
       // Ensure current authenticated user has latest Pi metadata.
       const {
@@ -180,6 +182,24 @@ const PiAuthPage = () => {
         });
         if (error) {
           toast.error(error.message || "Pi linked locally, but profile update failed");
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, username")
+          .eq("id", user.id)
+          .single();
+
+        const needsProfileSetup =
+          Boolean(signInResult?.created) ||
+          !profile?.full_name?.trim() ||
+          !profile?.username?.trim() ||
+          profile.username.startsWith("pi_");
+
+        if (needsProfileSetup) {
+          toast.message("Set up your profile to continue");
+          navigate("/setup-profile", { replace: true });
+          return;
         }
       }
 

@@ -30,6 +30,7 @@ import PrivacyPage from "./pages/PrivacyPage";
 import AboutOpenPayPage from "./pages/AboutOpenPayPage";
 import LegalPage from "./pages/LegalPage";
 import PiAuthPage from "./pages/PiAuthPage";
+import SetupProfilePage from "./pages/SetupProfilePage";
 import PiAdsPage from "./pages/PiAdsPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import MerchantOnboardingPage from "./pages/MerchantOnboardingPage";
@@ -54,6 +55,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<PiAuthPage />} />
+              <Route path="/setup-profile" element={<SetupProfilePage />} />
               <Route path="/pi-ads" element={<PiAdsPage />} />
               <Route path="/admin-mrwain" element={<AdminMrwainAuth />} />
               <Route path="/admin-dashboard" element={<AdminDashboard />} />

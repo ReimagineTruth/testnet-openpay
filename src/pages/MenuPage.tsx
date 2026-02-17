@@ -105,6 +105,7 @@ const MenuPage = () => {
     {
       title: "Manage finances",
       items: [
+        { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
         { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
         { icon: Activity, label: "Activity", action: () => navigate("/activity") },

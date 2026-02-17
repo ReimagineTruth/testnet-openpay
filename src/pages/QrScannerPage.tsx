@@ -113,7 +113,7 @@ const QrScannerPage = () => {
         sources.push({ facingMode: "environment" });
         sources.push({ facingMode: "user" });
 
-        const scanConfig = { fps: 10, qrbox: { width: 260, height: 260 } };
+        const scanConfig = { fps: 10 };
 
         let started = false;
         let startError = "";
@@ -175,32 +175,52 @@ const QrScannerPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="relative min-h-screen overflow-hidden">
+    <div className="fixed inset-0 h-[100dvh] w-screen bg-black text-white">
+      <div className="relative h-full w-full overflow-hidden">
         <style>{`
           #openpay-full-scanner {
-            background: #000;
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100dvh !important;
+            overflow: hidden !important;
+            background: #000 !important;
+          }
+          #openpay-full-scanner > div {
+            position: absolute !important;
+            inset: 0 !important;
           }
           #openpay-full-scanner video {
-            width: 100% !important;
-            height: 100% !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100dvh !important;
             object-fit: cover !important;
+            transform: translateZ(0);
+            background: #000 !important;
           }
           #openpay-full-scanner__scan_region {
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 100vh !important;
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100dvh !important;
+            min-height: 100dvh !important;
             margin: 0 !important;
             border: 0 !important;
+            background: transparent !important;
           }
           #openpay-full-scanner__dashboard {
             display: none !important;
           }
+          #openpay-full-scanner__dashboard_section_csr {
+            display: none !important;
+          }
         `}</style>
         <div id="openpay-full-scanner" className="absolute inset-0" />
-        <div className={`absolute inset-0 ${scanning ? "bg-black/20" : "bg-black/55"} transition`} />
+        <div className={`absolute inset-0 ${scanning ? "bg-black/25" : "bg-black/60"} transition`} />
 
-        <div className="relative z-10 flex min-h-screen flex-col px-5 pt-4 pb-6">
+        <div className="relative z-10 flex h-full flex-col px-5 pt-4 pb-6">
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate(returnTo)}

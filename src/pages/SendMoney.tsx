@@ -176,25 +176,59 @@ const SendMoney = () => {
     if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
     setLoading(true);
 
+    const transferViaRpcFallback = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds", {
+        p_sender_id: user.id,
+        p_receiver_id: selectedUser.id,
+        p_amount: usdAmount,
+        p_note: note || "",
+      });
+      if (rpcError) throw rpcError;
+      return String(txId || "");
+    };
+
+    let txId = "";
+    let usedFallback = false;
+
     const { data, error } = await supabase.functions.invoke("send-money", {
       body: { receiver_email: "__by_id__", receiver_id: selectedUser.id, amount: usdAmount, note },
     });
 
-    setLoading(false);
     if (error) {
-      toast.error(await getFunctionErrorMessage(error, "Transfer failed"));
+      try {
+        txId = await transferViaRpcFallback();
+        usedFallback = true;
+      } catch (fallbackError) {
+        const edgeErrorMessage = await getFunctionErrorMessage(error, "Transfer failed");
+        const fallbackErrorMessage =
+          fallbackError instanceof Error ? fallbackError.message : "Fallback transfer failed";
+        setLoading(false);
+        toast.error(`${edgeErrorMessage}. ${fallbackErrorMessage}`);
+        return;
+      }
     } else {
-      const txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
-      setReceiptData({
-        transactionId: txId,
-        type: "send",
-        amount: usdAmount,
-        otherPartyName: selectedUser.full_name,
-        otherPartyUsername: selectedUser.username || undefined,
-        note: note || undefined,
-        date: new Date(),
-      });
-      setReceiptOpen(true);
+      txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
+    }
+
+    setLoading(false);
+    setReceiptData({
+      transactionId: txId,
+      type: "send",
+      amount: usdAmount,
+      otherPartyName: selectedUser.full_name,
+      otherPartyUsername: selectedUser.username || undefined,
+      note: note || undefined,
+      date: new Date(),
+    });
+    setReceiptOpen(true);
+    if (usedFallback) {
+      toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}! (fallback route)`);
+    } else {
       toast.success(`${currency.symbol}${parseFloat(amount).toFixed(2)} sent to ${selectedUser.full_name}!`);
     }
   };
