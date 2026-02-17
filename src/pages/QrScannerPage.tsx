@@ -4,6 +4,8 @@ import { ArrowLeft, HelpCircle, ImageIcon } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const extractQrPayload = (rawValue: string) => {
   const value = rawValue.trim();
@@ -34,6 +36,7 @@ const QrScannerPage = () => {
   const [scanError, setScanError] = useState("");
   const [scanning, setScanning] = useState(false);
   const [pastedCode, setPastedCode] = useState("");
+  const [showInstructions, setShowInstructions] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -76,6 +79,13 @@ const QrScannerPage = () => {
 
     navigate(`${returnTo}?${params.toString()}`, { replace: true });
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = "openpay_scan_instructions_ack_v1";
+    const seen = localStorage.getItem(key) === "1";
+    if (!seen) setShowInstructions(true);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -157,11 +167,38 @@ const QrScannerPage = () => {
     await handleDecoded(pastedCode.trim());
   };
 
+  const handleAcknowledgeInstructions = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("openpay_scan_instructions_ack_v1", "1");
+    }
+    setShowInstructions(false);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       <div className="relative min-h-screen overflow-hidden">
+        <style>{`
+          #openpay-full-scanner {
+            background: #000;
+          }
+          #openpay-full-scanner video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+          }
+          #openpay-full-scanner__scan_region {
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 100vh !important;
+            margin: 0 !important;
+            border: 0 !important;
+          }
+          #openpay-full-scanner__dashboard {
+            display: none !important;
+          }
+        `}</style>
         <div id="openpay-full-scanner" className="absolute inset-0" />
-        <div className="absolute inset-0 bg-black/45 backdrop-blur-[1px]" />
+        <div className={`absolute inset-0 ${scanning ? "bg-black/20" : "bg-black/55"} transition`} />
 
         <div className="relative z-10 flex min-h-screen flex-col px-5 pt-4 pb-6">
           <div className="flex items-center justify-between">
@@ -174,7 +211,7 @@ const QrScannerPage = () => {
             </button>
             <h1 className="text-2xl font-bold">Scan QR code</h1>
             <button
-              onClick={() => toast.message("Use OpenPay receive QR for fastest match.")}
+              onClick={() => setShowInstructions(true)}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/35"
               aria-label="Help"
             >
@@ -244,6 +281,38 @@ const QrScannerPage = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="rounded-3xl sm:max-w-lg">
+          <DialogTitle className="text-xl font-bold text-foreground">OpenPay Scan Instructions</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            For payment safety, follow these rules before scanning.
+          </DialogDescription>
+
+          <div className="rounded-2xl border border-border p-3 text-sm text-foreground">
+            <p>1. Only scan OpenPay QR codes.</p>
+            <p>2. Do not scan QR codes from other wallets or unknown apps.</p>
+            <p>3. Verify the merchant username before you confirm payment.</p>
+            <p>4. Only pay merchants or users you directly interacted with.</p>
+            <p>5. Use Scan to Pay only for trusted payment requests.</p>
+          </div>
+          <div className="rounded-2xl border border-border bg-secondary/40 p-3 text-xs text-foreground">
+            <p className="font-semibold">Allowed paste formats:</p>
+            <p className="mt-1 break-all">openpay://pay?uid=&lt;user_uuid&gt;&amp;amount=10.00&amp;currency=USD</p>
+            <p className="mt-1 break-all">https://your-openpay-domain/send?to=&lt;user_uuid&gt;&amp;amount=10.00&amp;currency=USD</p>
+            <p className="mt-1">You can also paste only the recipient UUID.</p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" className="h-11 flex-1 rounded-2xl" onClick={() => setShowInstructions(false)}>
+              Close
+            </Button>
+            <Button className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={handleAcknowledgeInstructions}>
+              I Understand
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

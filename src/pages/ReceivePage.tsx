@@ -464,6 +464,26 @@ const ReceivePage = () => {
             </p>
           </div>
 
+          <div className="rounded-2xl border border-border bg-white p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay QR link</p>
+            <p className="mt-1 break-all text-sm text-foreground">{receiveQrValue || "Loading link..."}</p>
+            <div className="mt-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 w-full rounded-2xl"
+                onClick={() => handleCopy(receiveQrValue, "QR link")}
+                disabled={!receiveQrValue}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy QR Link
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Use this when the sender is opening the OpenPay app directly.
+            </p>
+          </div>
+
           <div className="rounded-2xl border border-border bg-white p-3 print:hidden">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Printable Store QR</p>
             <div className="mt-3 grid gap-2">
