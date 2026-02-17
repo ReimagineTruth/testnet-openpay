@@ -109,7 +109,7 @@ const OpenPayOfficialPage = () => {
                   Get Started
                 </button>
                 <button
-                  onClick={() => navigate("/merchant-onboarding")}
+                  onClick={() => navigate("/openpay-guide")}
                   className="paypal-pill border border-white/70 bg-transparent text-white transition hover:bg-white/10"
                 >
                   For Merchants

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, Eye, EyeOff, RefreshCw, Settings, Users } from "lucide-react";
+import { Bell, CircleDollarSign, Eye, EyeOff, FileText, QrCode, RefreshCw, Settings, Users } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -51,6 +51,7 @@ const Dashboard = () => {
   const [showAgreement, setShowAgreement] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showReceiveOptions, setShowReceiveOptions] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [remittanceFeeIncome, setRemittanceFeeIncome] = useState(0);
   const [remittanceTxCount, setRemittanceTxCount] = useState(0);
@@ -394,13 +395,60 @@ const Dashboard = () => {
             <Users className="h-6 w-6" />
           </button>
           <button onClick={() => navigate("/send")} className="flex-1 rounded-full bg-paypal-blue py-3.5 text-center font-semibold text-white shadow-lg shadow-[#0057d8]/30">Pay</button>
-          <button onClick={() => navigate("/receive")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Receive</button>
+          <button onClick={() => setShowReceiveOptions(true)} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Receive</button>
           <button onClick={() => navigate("/topup")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Top Up</button>
         </div>
       </div>
 
       <BottomNav active="home" />
       <TransactionReceipt open={receiptOpen} onOpenChange={setReceiptOpen} receipt={receiptData} />
+
+      <Dialog open={showReceiveOptions} onOpenChange={setShowReceiveOptions}>
+        <DialogContent className="top-auto bottom-0 translate-y-0 rounded-b-none rounded-t-3xl px-5 pb-7 pt-5 sm:max-w-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-8 data-[state=closed]:slide-out-to-bottom-8 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0">
+          <DialogTitle className="text-center text-2xl font-bold text-foreground">Ways to get paid</DialogTitle>
+          <DialogDescription className="text-center text-sm text-muted-foreground">
+            Choose how you want to receive payment.
+          </DialogDescription>
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <button
+              onClick={() => {
+                setShowReceiveOptions(false);
+                navigate("/receive");
+              }}
+              className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-center transition hover:bg-secondary"
+            >
+              <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
+                <QrCode className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Receive</p>
+            </button>
+            <button
+              onClick={() => {
+                setShowReceiveOptions(false);
+                navigate("/request-payment");
+              }}
+              className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-center transition hover:bg-secondary"
+            >
+              <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
+                <CircleDollarSign className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Request</p>
+            </button>
+            <button
+              onClick={() => {
+                setShowReceiveOptions(false);
+                navigate("/send-invoice");
+              }}
+              className="rounded-2xl border border-border/70 bg-secondary/50 p-3 text-center transition hover:bg-secondary"
+            >
+              <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-white">
+                <FileText className="h-5 w-5 text-paypal-blue" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Invoice</p>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showAgreement} onOpenChange={() => undefined}>
         <DialogContent className="rounded-3xl sm:max-w-md">

@@ -160,6 +160,7 @@ const MenuPage = () => {
         { icon: HelpCircle, label: "Help Center", action: () => navigate("/help-center") },
         { icon: Megaphone, label: "Announcements", action: () => navigate("/announcements") },
         { icon: Smartphone, label: "OpenPay Official Page", action: () => navigate("/openpay-official") },
+        { icon: Smartphone, label: "OpenApp Utility Apps", action: () => navigate("/openapp") },
         { icon: Store, label: "Where to use OpenPay", action: () => navigate("/openpay-guide") },
         { icon: Info, label: "About OpenPay", action: () => navigate("/about-openpay") },
         { icon: FileCheck, label: "Terms", action: () => navigate("/terms") },

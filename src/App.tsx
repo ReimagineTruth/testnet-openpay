@@ -36,6 +36,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import MerchantOnboardingPage from "./pages/MerchantOnboardingPage";
 import OpenPayOfficialPage from "./pages/OpenPayOfficialPage";
 import RemittanceMerchantPage from "./pages/RemittanceMerchantPage";
+import MerchantCheckoutPage from "./pages/MerchantCheckoutPage";
+import OpenAppPage from "./pages/OpenAppPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
@@ -88,8 +90,10 @@ const App = () => {
               <Route path="/about-openpay" element={<AboutOpenPayPage />} />
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/merchant-onboarding" element={<MerchantOnboardingPage />} />
+              <Route path="/merchant-checkout" element={<MerchantCheckoutPage />} />
               <Route path="/remittance-merchant" element={<RemittanceMerchantPage />} />
               <Route path="/openpay-official" element={<OpenPayOfficialPage />} />
+              <Route path="/openapp" element={<OpenAppPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <AppSecurityGate />
