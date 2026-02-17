@@ -5,7 +5,7 @@ import BottomNav from "@/components/BottomNav";
 import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
-import { canAccessRemittanceMerchant } from "@/lib/remittanceAccess";
+import { canAccessRemittanceMerchant, isRemittanceUiEnabled } from "@/lib/remittanceAccess";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -14,6 +14,7 @@ type BeforeInstallPromptEvent = Event & {
 
 const MenuPage = () => {
   const navigate = useNavigate();
+  const remittanceUiEnabled = isRemittanceUiEnabled();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [canInstall, setCanInstall] = useState(false);
   const [welcomeClaimedAt, setWelcomeClaimedAt] = useState<string | null>(null);
@@ -42,7 +43,9 @@ const MenuPage = () => {
         .select("username")
         .eq("id", user.id)
         .single();
-      setHasRemittanceAccess(canAccessRemittanceMerchant(user.id, profile?.username || null));
+      if (remittanceUiEnabled) {
+        setHasRemittanceAccess(canAccessRemittanceMerchant(user.id, profile?.username || null));
+      }
 
       const { data: wallet } = await supabase
         .from("wallets")
@@ -52,7 +55,7 @@ const MenuPage = () => {
       setWelcomeClaimedAt(wallet?.welcome_bonus_claimed_at || null);
     };
     loadWelcomeStatus();
-  }, []);
+  }, [remittanceUiEnabled]);
 
   const handleInstall = async () => {
     if (!installPrompt) return;
@@ -116,19 +119,21 @@ const MenuPage = () => {
       items: [
         { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
-        {
-          icon: Store,
-          label: hasRemittanceAccess ? "Remittance merchant center" : "Remittance merchant center (Coming soon)",
-          action: () => {
-            if (hasRemittanceAccess) {
-              navigate("/remittance-merchant");
-              return;
-            }
-            toast.message("Coming soon");
-          },
-          disabled: !hasRemittanceAccess,
-          subtitle: hasRemittanceAccess ? "Developer access enabled" : "Under development",
-        },
+        ...(remittanceUiEnabled
+          ? [{
+              icon: Store,
+              label: hasRemittanceAccess ? "Remittance merchant center" : "Remittance merchant center (Coming soon)",
+              action: () => {
+                if (hasRemittanceAccess) {
+                  navigate("/remittance-merchant");
+                  return;
+                }
+                toast.message("Coming soon");
+              },
+              disabled: !hasRemittanceAccess,
+              subtitle: hasRemittanceAccess ? "Developer access enabled" : "Under development",
+            }]
+          : []),
         { icon: ArrowLeftRight, label: "Currency converter", action: () => navigate("/currency-converter") },
         { icon: Activity, label: "Activity", action: () => navigate("/activity") },
         { icon: BookOpen, label: "Public ledger", action: () => navigate("/ledger") },

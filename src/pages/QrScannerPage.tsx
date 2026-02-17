@@ -6,28 +6,53 @@ import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 const extractQrPayload = (rawValue: string) => {
   const value = rawValue.trim();
-  if (!value) return { uid: null as string | null, amount: "", currency: "" };
+  if (!value) return { uid: null as string | null, username: "", amount: "", currency: "", note: "" };
 
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(value)) return { uid: value, amount: "", currency: "" };
+  if (uuidRegex.test(value)) return { uid: value, username: "", amount: "", currency: "", note: "" };
+
+  const normalizeUsername = (input: string | null | undefined) =>
+    (input || "").trim().replace(/^@+/, "").toLowerCase();
 
   try {
     const parsed = new URL(value);
-    const uid = parsed.searchParams.get("uid") || parsed.searchParams.get("to");
+    const uidOrTo = parsed.searchParams.get("uid") || parsed.searchParams.get("to");
+    const usernameParam = parsed.searchParams.get("username");
+    const pathUsername =
+      parsed.hostname === "pay"
+        ? normalizeUsername(parsed.pathname.replace(/^\/+/, ""))
+        : "";
+    const normalizedUsername = normalizeUsername(usernameParam) || pathUsername;
     const amount = parsed.searchParams.get("amount") || "";
     const currencyCode = (parsed.searchParams.get("currency") || "").toUpperCase();
-    return { uid: uid && uuidRegex.test(uid) ? uid : null, amount, currency: currencyCode };
+    const note = parsed.searchParams.get("note") || "";
+    return {
+      uid: uidOrTo && uuidRegex.test(uidOrTo) ? uidOrTo : null,
+      username: normalizedUsername,
+      amount,
+      currency: currencyCode,
+      note,
+    };
   } catch {
     // no-op
   }
 
-  const maybeUid = value.split("uid=")[1]?.split("&")[0];
+  const maybeUid = value.split("uid=")[1]?.split("&")[0] || value.split("to=")[1]?.split("&")[0];
+  const maybeUsername = normalizeUsername(value.split("username=")[1]?.split("&")[0]);
   const maybeAmount = value.split("amount=")[1]?.split("&")[0] || "";
   const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
-  return { uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null, amount: maybeAmount, currency: maybeCurrency };
+  const maybeNote = value.split("note=")[1]?.split("&")[0] || "";
+  return {
+    uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null,
+    username: maybeUsername,
+    amount: maybeAmount,
+    currency: maybeCurrency,
+    note: maybeNote,
+  };
 };
 
 const QrScannerPage = () => {
@@ -78,18 +103,32 @@ const QrScannerPage = () => {
 
     const payload = extractQrPayload(decodedText);
     await stopScanner();
-    if (!payload.uid) {
+    let recipientId = payload.uid;
+    if (!recipientId && payload.username) {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id")
+        .ilike("username", payload.username)
+        .limit(1)
+        .maybeSingle();
+      recipientId = data?.id || null;
+    }
+
+    if (!recipientId) {
       toast.error("Invalid QR code");
       handlingDecodeRef.current = false;
       return;
     }
 
-    const params = new URLSearchParams({ to: payload.uid });
+    const params = new URLSearchParams({ to: recipientId });
     if (payload.amount && Number.isFinite(Number(payload.amount)) && Number(payload.amount) > 0) {
       params.set("amount", Number(payload.amount).toFixed(2));
     }
     if (payload.currency) {
       params.set("currency", payload.currency);
+    }
+    if (payload.note) {
+      params.set("note", payload.note);
     }
 
     navigate(`${returnTo}?${params.toString()}`, { replace: true });
@@ -116,6 +155,7 @@ const QrScannerPage = () => {
     };
 
     const startScanner = async () => {
+      await stopScanner();
       const hasScannerElement = await waitForScannerElement();
       if (!hasScannerElement) {
         if (mounted) setScanError("Scanner failed to mount. Please retry.");
@@ -154,11 +194,6 @@ const QrScannerPage = () => {
         const scanConfig = {
           fps: 12,
           disableFlip: false,
-          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const box = Math.max(180, Math.floor(minEdge * 0.68));
-            return { width: box, height: box };
-          },
         };
 
         let started = false;
@@ -191,6 +226,7 @@ const QrScannerPage = () => {
     return () => {
       mounted = false;
       void stopScanner();
+      scannerRef.current = null;
     };
   }, [returnTo]);
 
@@ -259,6 +295,10 @@ const QrScannerPage = () => {
             margin: 0 !important;
             border: 0 !important;
             background: transparent !important;
+          }
+          #openpay-full-scanner__scan_region img,
+          #openpay-full-scanner__scan_region canvas {
+            display: none !important;
           }
           #openpay-full-scanner__dashboard {
             display: none !important;

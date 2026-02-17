@@ -174,6 +174,22 @@ const ProfilePage = () => {
           <div>
             <p className="mb-1 text-sm text-muted-foreground">Email</p>
             <Input value={email} disabled className="h-12 rounded-2xl bg-white/70" />
+            <p className="mt-1 text-xs text-muted-foreground">
+              This is your bound recovery email for MPIN and biometric recovery.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-paypal-light-blue/50 bg-paypal-light-blue/10 p-3 text-sm">
+            <p className="font-semibold text-foreground">Security recovery</p>
+            <p className="mt-1 text-muted-foreground">
+              If you forget MPIN or device biometric access, open Help Center recovery tools.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/help-center?topic=forgot-mpin")}
+              className="mt-2 text-sm font-semibold text-paypal-blue"
+            >
+              Open MPIN recovery
+            </button>
           </div>
           {createdAt && (
             <p className="text-xs text-muted-foreground">

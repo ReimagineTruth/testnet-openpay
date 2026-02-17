@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import {
+  AppSecuritySettings,
+  hashSecret,
+  loadAppSecuritySettings,
+  saveAppSecuritySettings,
+  verifyBiometricCredential,
+} from "@/lib/appSecurity";
 
 interface SupportTicket {
   id: string;
@@ -18,11 +25,18 @@ interface SupportTicket {
 
 const HelpCenter = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [securitySettings, setSecuritySettings] = useState<AppSecuritySettings>({});
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
+  const forgotMode = searchParams.get("topic") === "forgot-mpin";
 
   const faqs = [
     {
@@ -39,13 +53,15 @@ const HelpCenter = () => {
     },
   ];
 
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate("/signin");
       return;
     }
     setUserId(user.id);
+    setEmail(user.email || "");
+    setSecuritySettings(loadAppSecuritySettings(user.id));
 
     const { data } = await supabase
       .from("support_tickets")
@@ -54,11 +70,11 @@ const HelpCenter = () => {
       .order("created_at", { ascending: false });
 
     setTickets(data || []);
-  };
+  }, [navigate]);
 
   useEffect(() => {
     loadTickets();
-  }, []);
+  }, [loadTickets]);
 
   const handleSubmitTicket = async () => {
     if (!userId) return;
@@ -87,6 +103,73 @@ const HelpCenter = () => {
     await loadTickets();
   };
 
+  const persistSecuritySettings = (nextSettings: AppSecuritySettings) => {
+    if (!userId) return;
+    setSecuritySettings(nextSettings);
+    saveAppSecuritySettings(userId, nextSettings);
+  };
+
+  const handleRemoveMpinByPassword = async () => {
+    if (!securitySettings.pinHash || !securitySettings.passwordHash) return;
+    if (!recoveryPassword.trim()) {
+      setRecoveryError("Enter your security password.");
+      return;
+    }
+    setRecoveryLoading(true);
+    setRecoveryError("");
+    const hashed = await hashSecret(recoveryPassword);
+    if (hashed !== securitySettings.passwordHash) {
+      setRecoveryLoading(false);
+      setRecoveryError("Security password is incorrect.");
+      return;
+    }
+    const nextSettings = { ...securitySettings };
+    delete nextSettings.pinHash;
+    persistSecuritySettings(nextSettings);
+    setRecoveryPassword("");
+    setRecoveryLoading(false);
+    toast.success("MPIN removed. Set a new MPIN in Settings.");
+  };
+
+  const handleRemoveMpinByBiometric = async () => {
+    if (!securitySettings.pinHash || !securitySettings.biometricCredentialId) return;
+    setRecoveryLoading(true);
+    setRecoveryError("");
+    try {
+      await verifyBiometricCredential(securitySettings.biometricCredentialId);
+      const nextSettings = { ...securitySettings };
+      delete nextSettings.pinHash;
+      persistSecuritySettings(nextSettings);
+      toast.success("MPIN removed. Set a new MPIN in Settings.");
+    } catch (error) {
+      setRecoveryError(error instanceof Error ? error.message : "Biometric verification failed.");
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const handleRemoveBiometricByPassword = async () => {
+    if (!securitySettings.biometricCredentialId || !securitySettings.passwordHash) return;
+    if (!recoveryPassword.trim()) {
+      setRecoveryError("Enter your security password.");
+      return;
+    }
+    setRecoveryLoading(true);
+    setRecoveryError("");
+    const hashed = await hashSecret(recoveryPassword);
+    if (hashed !== securitySettings.passwordHash) {
+      setRecoveryLoading(false);
+      setRecoveryError("Security password is incorrect.");
+      return;
+    }
+    const nextSettings = { ...securitySettings, biometricEnabled: false };
+    delete nextSettings.biometricCredentialId;
+    persistSecuritySettings(nextSettings);
+    setRecoveryPassword("");
+    setRecoveryLoading(false);
+    toast.success("Biometric lock removed for this device.");
+  };
+
   return (
     <div className="min-h-screen bg-background pb-8">
       <div className="flex items-center gap-3 px-4 pt-4 mb-4">
@@ -97,6 +180,52 @@ const HelpCenter = () => {
       </div>
 
       <div className="px-4 space-y-4">
+        <div className={`bg-card rounded-2xl border border-border p-4 space-y-3 ${forgotMode ? "ring-2 ring-paypal-blue/30" : ""}`}>
+          <h2 className="font-semibold text-foreground">Forgot MPIN / Biometric Recovery</h2>
+          <p className="text-sm text-muted-foreground">
+            Bound recovery email: <span className="font-semibold text-foreground">{email || "No email"}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            If all local security methods fail, use this email to sign in again and reset security from Settings.
+          </p>
+
+          <div className="space-y-2 rounded-xl border border-border p-3">
+            <p className="text-sm font-medium text-foreground">Verify with security password</p>
+            <Input
+              type="password"
+              placeholder="Enter security password"
+              value={recoveryPassword}
+              onChange={(e) => setRecoveryPassword(e.target.value)}
+            />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                onClick={handleRemoveMpinByPassword}
+                disabled={recoveryLoading || !securitySettings.pinHash || !securitySettings.passwordHash}
+              >
+                Remove MPIN
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleRemoveBiometricByPassword}
+                disabled={recoveryLoading || !securitySettings.biometricCredentialId || !securitySettings.passwordHash}
+              >
+                Remove Biometric
+              </Button>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={handleRemoveMpinByBiometric}
+            disabled={recoveryLoading || !securitySettings.pinHash || !securitySettings.biometricCredentialId}
+            className="w-full"
+          >
+            Use Biometric to Remove MPIN
+          </Button>
+
+          {recoveryError && <p className="text-sm text-destructive">{recoveryError}</p>}
+        </div>
+
         <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
           <h2 className="font-semibold text-foreground">FAQs</h2>
           {faqs.map((faq) => (

@@ -49,6 +49,16 @@ const AboutOpenPayPage = () => {
           OpenPay is currently free for supported core features. Future integrations may be introduced based on
           technical and legal availability.
         </div>
+
+        <div className="rounded-2xl border border-paypal-light-blue/40 bg-paypal-light-blue/10 p-3 text-xs text-muted-foreground">
+          OpenPay is an independent platform built for the Pi Network ecosystem and is not affiliated with any
+          government authority or central bank. OpenPay is powered by the Pi digital currency. For more information,
+          visit{" "}
+          <a href="https://minepi.com" target="_blank" rel="noreferrer" className="font-semibold text-paypal-blue">
+            minepi.com
+          </a>
+          .
+        </div>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getAppCookie, loadUserPreferences, setAppCookie, upsertUserPreferences } from "@/lib/userPreferences";
+import { isRemittanceUiEnabled } from "@/lib/remittanceAccess";
 
 interface Transaction {
   id: string;
@@ -36,6 +37,7 @@ const getGreeting = () => {
 };
 
 const Dashboard = () => {
+  const remittanceUiEnabled = isRemittanceUiEnabled();
   const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [userName, setUserName] = useState("");
@@ -316,24 +318,26 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="mx-4 mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="paypal-surface rounded-2xl p-3">
-          <p className="text-xs text-muted-foreground">Remittance fee income</p>
-          <p className="mt-1 text-xl font-bold text-foreground">{balanceHidden ? "****" : formatCurrency(remittanceFeeIncome)}</p>
+      {remittanceUiEnabled && (
+        <div className="mx-4 mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="paypal-surface rounded-2xl p-3">
+            <p className="text-xs text-muted-foreground">Remittance fee income</p>
+            <p className="mt-1 text-xl font-bold text-foreground">{balanceHidden ? "****" : formatCurrency(remittanceFeeIncome)}</p>
+          </div>
+          <div className="paypal-surface rounded-2xl p-3">
+            <p className="text-xs text-muted-foreground">This month</p>
+            <p className="mt-1 text-xl font-bold text-foreground">{balanceHidden ? "****" : formatCurrency(remittanceMonthIncome)}</p>
+          </div>
+          <button
+            onClick={() => navigate("/remittance-merchant")}
+            className="paypal-surface rounded-2xl p-3 text-left transition hover:bg-secondary/50"
+          >
+            <p className="text-xs text-muted-foreground">Remittance records</p>
+            <p className="mt-1 text-xl font-bold text-foreground">{remittanceTxCount}</p>
+            <p className="text-xs font-medium text-paypal-blue">Manage center</p>
+          </button>
         </div>
-        <div className="paypal-surface rounded-2xl p-3">
-          <p className="text-xs text-muted-foreground">This month</p>
-          <p className="mt-1 text-xl font-bold text-foreground">{balanceHidden ? "****" : formatCurrency(remittanceMonthIncome)}</p>
-        </div>
-        <button
-          onClick={() => navigate("/remittance-merchant")}
-          className="paypal-surface rounded-2xl p-3 text-left transition hover:bg-secondary/50"
-        >
-          <p className="text-xs text-muted-foreground">Remittance records</p>
-          <p className="mt-1 text-xl font-bold text-foreground">{remittanceTxCount}</p>
-          <p className="text-xs font-medium text-paypal-blue">Manage center</p>
-        </button>
-      </div>
+      )}
 
       <div className="mt-6 px-4">
         <div className="mb-4 flex items-center justify-between">

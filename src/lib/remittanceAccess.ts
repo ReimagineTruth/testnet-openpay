@@ -19,7 +19,12 @@ const allowedUserIds = parseCsvEnv(
   [],
 );
 
+const remittanceUiEnabled = String(import.meta.env.VITE_ENABLE_REMITTANCE_UI || "").toLowerCase() === "true";
+
+export const isRemittanceUiEnabled = () => remittanceUiEnabled;
+
 export const canAccessRemittanceMerchant = (userId: string | null | undefined, username: string | null | undefined) => {
+  if (!remittanceUiEnabled) return false;
   const normalized = normalizeUsername(username);
   if (userId && allowedUserIds.includes(userId)) return true;
   if (normalized && allowedUsernames.includes(normalized)) return true;

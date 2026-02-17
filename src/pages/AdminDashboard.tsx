@@ -31,6 +31,7 @@ type AdminSummary = {
 };
 
 const PAGE_SIZE = 50;
+const ADMIN_PROFILE_USERNAMES = new Set(["openpay", "wainfoundation"]);
 
 const displayName = (profile: { full_name: string; username: string } | null, fallbackId: string) => {
   if (!profile) return fallbackId.slice(0, 8);
@@ -54,6 +55,7 @@ const AdminDashboard = () => {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [offset, setOffset] = useState(0);
   const [viewerEmail, setViewerEmail] = useState<string>("");
+  const [viewerUsername, setViewerUsername] = useState<string>("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const hasPrev = offset > 0;
@@ -80,6 +82,16 @@ const AdminDashboard = () => {
         return;
       }
       setViewerEmail(user.email);
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", user.id)
+          .maybeSingle();
+        setViewerUsername((profile?.username || "").trim().toLowerCase());
+      } catch {
+        setViewerUsername("");
+      }
 
       const { data, error } = await supabase.rpc("admin_dashboard_history" as any, {
         p_limit: PAGE_SIZE,
@@ -121,6 +133,7 @@ const AdminDashboard = () => {
     row.event_type === "transaction_created" &&
     !!row.actor_user_id &&
     row.actor_user_id === row.related_user_id;
+  const canViewAdminProfile = ADMIN_PROFILE_USERNAMES.has(viewerUsername);
 
   const handleSelfSendReview = async (row: AdminHistoryRow, decision: "approve" | "reject") => {
     setReviewingId(row.id);
@@ -169,6 +182,13 @@ const AdminDashboard = () => {
         </div>
 
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {canViewAdminProfile && (
+            <div className="paypal-surface rounded-2xl p-4 sm:col-span-3">
+              <p className="text-xs text-muted-foreground">Admin Profile</p>
+              <p className="mt-1 text-xl font-bold text-foreground">@{viewerUsername}</p>
+              <p className="text-xs text-muted-foreground">Restricted visibility enabled for OpenPay core admins only.</p>
+            </div>
+          )}
           <div className="paypal-surface rounded-2xl p-4">
             <p className="text-xs text-muted-foreground">Total History Events</p>
             <p className="mt-1 text-2xl font-bold text-foreground">{summary?.total_history_events ?? 0}</p>

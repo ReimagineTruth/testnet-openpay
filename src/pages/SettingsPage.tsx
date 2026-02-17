@@ -136,6 +136,10 @@ const SettingsPage = () => {
 
   const handleSetSecurityPassword = async () => {
     if (!userId) return;
+    if (securitySettings.passwordHash) {
+      toast.message("Disable security password first, then set a new one.");
+      return;
+    }
     if (securityPassword.trim().length < 6) {
       toast.error("Security password must be at least 6 characters");
       return;
@@ -293,12 +297,16 @@ const SettingsPage = () => {
               type="password"
               value={securityPassword}
               onChange={(e) => setSecurityPassword(e.target.value)}
-              placeholder={securitySettings.passwordHash ? "Update security password" : "Create security password"}
+              placeholder={securitySettings.passwordHash ? "Disable first to set a new password" : "Create security password"}
               className="h-12 rounded-2xl bg-white"
             />
             <div className="mt-2 flex gap-2">
-              <Button onClick={handleSetSecurityPassword} disabled={savingSecurity || !securityPassword.trim()} className="h-10 flex-1 rounded-2xl">
-                {securitySettings.passwordHash ? "Update Password" : "Enable Password"}
+              <Button
+                onClick={handleSetSecurityPassword}
+                disabled={savingSecurity || !securityPassword.trim() || Boolean(securitySettings.passwordHash)}
+                className="h-10 flex-1 rounded-2xl"
+              >
+                Enable Password
               </Button>
               {securitySettings.passwordHash && (
                 <Button variant="outline" onClick={handleDisableSecurityPassword} className="h-10 rounded-2xl">

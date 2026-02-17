@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import BrandLogo from "@/components/BrandLogo";
 import {
   clearAppSecurityUnlock,
   hasAnyAppSecurityMethod,
@@ -10,7 +11,6 @@ import {
   loadAppSecuritySettings,
   markAppSecurityUnlocked,
   hashSecret,
-  saveAppSecuritySettings,
   verifyBiometricCredential,
 } from "@/lib/appSecurity";
 import { loadUserPreferences } from "@/lib/userPreferences";
@@ -25,6 +25,7 @@ const PUBLIC_PATHS = new Set([
   "/privacy",
   "/about-openpay",
   "/legal",
+  "/help-center",
 ]);
 
 const AppSecurityGate = () => {
@@ -36,11 +37,15 @@ const AppSecurityGate = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [accountLabel, setAccountLabel] = useState("Secure Account");
   const [settings, setSettings] = useState(() => ({} as ReturnType<typeof loadAppSecuritySettings>));
 
   const hasPin = Boolean(settings.pinHash);
   const hasPassword = Boolean(settings.passwordHash);
   const hasBiometric = Boolean(settings.biometricEnabled && settings.biometricCredentialId);
+  const primaryButtonClass = "h-11 w-full rounded-2xl bg-paypal-blue text-white font-semibold hover:bg-[#004dc5] disabled:bg-paypal-blue/45";
+  const darkButtonClass = "h-11 w-full rounded-2xl bg-paypal-dark text-white font-semibold hover:bg-paypal-dark/90 disabled:bg-paypal-dark/45";
+  const softButtonClass = "h-11 w-full rounded-2xl border border-paypal-light-blue/70 bg-white text-paypal-dark font-semibold hover:bg-[#f2f7ff]";
 
   const shouldSkipPath = useMemo(() => {
     if (location.pathname.startsWith("/admin")) return true;
@@ -66,6 +71,20 @@ const AppSecurityGate = () => {
 
       const currentUserId = user.id;
       setUserId(currentUserId);
+      const fallbackLabel = user.phone || user.email || "Secure Account";
+      setAccountLabel(fallbackLabel);
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", currentUserId)
+          .maybeSingle();
+        if (profile?.username) {
+          setAccountLabel(`@${profile.username}`);
+        }
+      } catch {
+        // keep fallback label
+      }
       let loaded = loadAppSecuritySettings(currentUserId);
       if (!hasAnyAppSecurityMethod(loaded)) {
         try {
@@ -152,55 +171,112 @@ const AppSecurityGate = () => {
   if (!locked) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-paypal-blue px-4 py-8">
-      <div className="mx-auto mt-12 w-full max-w-sm rounded-3xl border border-[#c8d9ff] bg-white p-5 shadow-2xl shadow-[#003e9a]/30">
-        <h2 className="text-2xl font-bold text-foreground">Unlock OpenPay</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Use your security method to continue.</p>
-
-        {hasPin && (
-          <div className="mt-4">
-            <p className="mb-1 text-sm text-muted-foreground">PIN</p>
-            <Input
-              type="password"
-              inputMode="numeric"
-              placeholder="Enter PIN"
-              value={pin}
-              onChange={(event) => setPin(event.target.value)}
-              className="h-12 rounded-2xl bg-white"
-            />
-            <Button disabled={busy || !pin.trim()} onClick={handleUnlockWithPin} className="mt-2 h-11 w-full rounded-2xl">
-              Unlock with PIN
-            </Button>
+    <div
+      className="openpay-lock-scroll fixed inset-0 z-[100] overflow-y-auto bg-paypal-blue text-white"
+      style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+    >
+      <style>{`
+        .openpay-lock-scroll::-webkit-scrollbar { display: none; }
+      `}</style>
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-6 pb-7 pt-10">
+        <div className="mt-6 text-center">
+          <div className="flex items-center justify-center gap-3">
+            <BrandLogo className="h-10 w-10" />
+            <h1 className="text-4xl font-bold tracking-tight">OpenPay</h1>
           </div>
-        )}
-
-        {hasPassword && (
-          <div className="mt-4">
-            <p className="mb-1 text-sm text-muted-foreground">Security Password</p>
-            <Input
-              type="password"
-              placeholder="Enter security password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="h-12 rounded-2xl bg-white"
-            />
-            <Button disabled={busy || !password.trim()} onClick={handleUnlockWithPassword} className="mt-2 h-11 w-full rounded-2xl">
-              Unlock with Password
-            </Button>
+          <p className="mt-6 text-4xl font-semibold">Good Day!</p>
+          <div className="mx-auto mt-4 flex h-12 w-full max-w-xs items-center justify-center rounded-full border border-white/20 bg-paypal-dark/25 px-4 shadow-inner shadow-paypal-dark/35">
+            <p className="truncate text-2xl font-semibold tracking-wide">{accountLabel}</p>
           </div>
-        )}
+        </div>
 
-        {hasBiometric && (
-          <Button disabled={busy} onClick={handleUnlockWithBiometric} className="mt-4 h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]">
-            Use Face ID / Fingerprint
+        <div className="mt-8 rounded-[2rem] border border-[#d9e7ff] bg-[#fdfefe] px-5 py-6 text-paypal-dark shadow-2xl shadow-paypal-dark/25">
+          <div className="mb-4 h-1.5 w-24 rounded-full bg-paypal-blue/80" />
+          {hasPin && (
+            <div>
+              <p className="text-center text-2xl font-semibold">Enter your MPIN</p>
+              <Input
+                type="password"
+                inputMode="numeric"
+                placeholder="Enter PIN"
+                value={pin}
+                onChange={(event) => setPin(event.target.value)}
+                className="mt-4 h-12 rounded-2xl border-paypal-light-blue/70 bg-[#edf3ff] text-center text-lg"
+              />
+              <div className="mt-3 flex justify-center gap-2">
+                {[0, 1, 2, 3].map((dot) => (
+                  <span
+                    key={dot}
+                    className={`h-2.5 w-2.5 rounded-full border ${pin.length > dot ? "border-paypal-blue bg-paypal-blue" : "border-paypal-light-blue bg-transparent"}`}
+                  />
+                ))}
+              </div>
+              <Button
+                disabled={busy || !pin.trim()}
+                onClick={handleUnlockWithPin}
+                className={`mt-4 ${primaryButtonClass}`}
+              >
+                {busy ? "Unlocking..." : "Unlock with MPIN"}
+              </Button>
+            </div>
+          )}
+
+          {hasPassword && (
+            <div className={hasPin ? "mt-5" : ""}>
+              <p className="mb-1 text-sm font-medium text-paypal-dark/75">Security Password</p>
+              <Input
+                type="password"
+                placeholder="Enter security password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="h-12 rounded-2xl border-paypal-light-blue/70 bg-[#f8fbff]"
+              />
+              <Button
+                disabled={busy || !password.trim()}
+                onClick={handleUnlockWithPassword}
+                className={`mt-2 ${primaryButtonClass}`}
+              >
+                {busy ? "Unlocking..." : "Unlock with Password"}
+              </Button>
+            </div>
+          )}
+
+          {hasBiometric && (
+            <Button
+              disabled={busy}
+              onClick={handleUnlockWithBiometric}
+              className={`mt-4 ${darkButtonClass}`}
+            >
+              Use Face ID / Fingerprint
+            </Button>
+          )}
+
+          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+          <Button
+            onClick={handleLogout}
+            className={`mt-4 ${softButtonClass}`}
+          >
+            Log Out
           </Button>
-        )}
+        </div>
 
-        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+        <p className="mt-6 text-center text-sm text-white/85">Never share your MPIN, password, or OTP with anyone.</p>
 
-        <Button variant="outline" onClick={handleLogout} className="mt-4 h-11 w-full rounded-2xl">
-          Log Out
-        </Button>
+        <div className="mt-auto flex items-center justify-center gap-4 pt-8 text-base font-semibold">
+          <button
+            onClick={() => navigate("/help-center")}
+            className="rounded-full border border-white/25 bg-paypal-dark/20 px-4 py-2 text-white/95 hover:bg-paypal-dark/35"
+          >
+            Help Center
+          </button>
+          <button
+            onClick={() => navigate("/help-center?topic=forgot-mpin")}
+            className="rounded-full border border-white/25 bg-paypal-dark/20 px-4 py-2 text-white/95 hover:bg-paypal-dark/35"
+          >
+            Forgot MPIN?
+          </button>
+        </div>
       </div>
     </div>
   );
