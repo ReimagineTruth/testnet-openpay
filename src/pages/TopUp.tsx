@@ -155,6 +155,16 @@ const TopUp = () => {
             <p>5. A merchant may add an exchange fee, similar to peer-to-peer exchange terms.</p>
           </div>
 
+          <div className="rounded-2xl border border-paypal-light-blue/40 bg-paypal-light-blue/10 p-3 text-xs text-muted-foreground">
+            OpenPay is an independent platform built for the Pi Network ecosystem and is not affiliated with any
+            government authority or central bank. OpenPay is powered by the Pi digital currency. For more information,
+            visit{" "}
+            <a href="https://minepi.com" target="_blank" rel="noreferrer" className="font-semibold text-paypal-blue">
+              minepi.com
+            </a>
+            .
+          </div>
+
           <Button
             className="h-11 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
             onClick={() => setShowInstructions(false)}
