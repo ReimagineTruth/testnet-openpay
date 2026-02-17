@@ -31,10 +31,12 @@ import LegalPage from "./pages/LegalPage";
 import PiAuthPage from "./pages/PiAuthPage";
 import PiAdsPage from "./pages/PiAdsPage";
 import AdminDashboard from "./pages/AdminDashboard";
+import MerchantOnboardingPage from "./pages/MerchantOnboardingPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotifications";
 import AppSecurityGate from "./components/AppSecurityGate";
+import AppFooter from "./components/AppFooter";
 
 const queryClient = new QueryClient();
 
@@ -79,9 +81,11 @@ const App = () => {
               <Route path="/privacy" element={<PrivacyPage />} />
               <Route path="/about-openpay" element={<AboutOpenPayPage />} />
               <Route path="/legal" element={<LegalPage />} />
+              <Route path="/merchant-onboarding" element={<MerchantOnboardingPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
             <AppSecurityGate />
+            <AppFooter />
           </BrowserRouter>
         </TooltipProvider>
       </CurrencyProvider>
