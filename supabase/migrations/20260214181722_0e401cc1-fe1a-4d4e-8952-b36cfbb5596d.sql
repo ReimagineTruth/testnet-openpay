@@ -1,4 +1,6 @@
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Profiles table
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,

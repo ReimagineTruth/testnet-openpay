@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 import { canAccessRemittanceMerchant, isRemittanceUiEnabled } from "@/lib/remittanceAccess";
@@ -119,7 +119,9 @@ const MenuPage = () => {
       items: [
         { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
+        { icon: Store, label: "Merchant Portal", action: () => navigate("/merchant-onboarding") },
         { icon: CreditCard, label: "OpenPay Virtual Card", action: () => navigate("/virtual-card") },
+        { icon: FileText, label: "Payment Link Creator", action: () => navigate("/payment-links/create") },
         ...(remittanceUiEnabled
           ? [{
               icon: Store,
@@ -163,6 +165,10 @@ const MenuPage = () => {
         { icon: Smartphone, label: "OpenPay Official Page", action: () => navigate("/openpay-official") },
         { icon: Smartphone, label: "OpenApp Utility Apps", action: () => navigate("/openapp") },
         { icon: Store, label: "Where to use OpenPay", action: () => navigate("/openpay-guide") },
+        { icon: BookOpen, label: "OpenPay Documentation", action: () => navigate("/openpay-documentation") },
+        { icon: FileText, label: "Pi Whitepaper", action: () => navigate("/pi-whitepaper") },
+        { icon: FileText, label: "Pi MiCA Whitepaper", action: () => navigate("/pi-mica-whitepaper") },
+        { icon: ShieldCheck, label: "GDPR", action: () => navigate("/gdpr") },
         { icon: Info, label: "About OpenPay", action: () => navigate("/about-openpay") },
         { icon: FileCheck, label: "Terms", action: () => navigate("/terms") },
         { icon: Lock, label: "Privacy", action: () => navigate("/privacy") },

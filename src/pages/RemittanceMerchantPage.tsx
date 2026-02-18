@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { loadUserPreferences, upsertUserPreferences } from "@/lib/userPreferences";
 import BrandLogo from "@/components/BrandLogo";
+import SplashScreen from "@/components/SplashScreen";
 
 interface SelfProfile {
   id: string;
@@ -27,6 +28,7 @@ const MIN_OPERATING_BALANCE = 25;
 
 const RemittanceMerchantPage = () => {
   const navigate = useNavigate();
+  const [bootLoading, setBootLoading] = useState(true);
   const [profile, setProfile] = useState<SelfProfile | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
@@ -132,6 +134,7 @@ const RemittanceMerchantPage = () => {
         // Keep defaults if preferences are unavailable.
       } finally {
         setPrefsLoaded(true);
+        setBootLoading(false);
       }
     };
 
@@ -359,6 +362,10 @@ const RemittanceMerchantPage = () => {
     toast.success("Fee income recorded");
   };
 
+  if (bootLoading) {
+    return <SplashScreen message="Loading remittance merchant..." />;
+  }
+
   return (
     <div className="min-h-screen bg-background px-4 pt-4 pb-24">
       <style>{`
@@ -521,7 +528,7 @@ const RemittanceMerchantPage = () => {
               <Input type="color" value={qrBackground} onChange={(e) => setQrBackground(e.target.value)} className="h-8 border-0 p-0" />
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <Button type="button" variant="outline" className="h-10 rounded-xl" onClick={handleCopyLink}>
               <Copy className="mr-2 h-4 w-4" />
               Copy Pay Link
@@ -602,7 +609,7 @@ const RemittanceMerchantPage = () => {
             background: `linear-gradient(135deg, ${qrAccent} 0%, #0f172a 100%)`,
           }}
         >
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">OpenPay Merchant Store</p>
               <p className="text-3xl font-extrabold text-white">{bannerTitle || "OpenPay Remittance Center"}</p>

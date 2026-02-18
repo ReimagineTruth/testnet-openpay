@@ -13,9 +13,7 @@ const SplashScreen = ({ message = "Loading your wallet..." }: SplashScreenProps)
         </div>
         <p className="text-3xl font-bold tracking-tight text-white">OpenPay</p>
         <p className="mt-1 text-sm text-white/80">{message}</p>
-        <div className="mx-auto mt-5 h-1.5 w-36 overflow-hidden rounded-full bg-white/20">
-          <div className="h-full w-1/2 animate-[pulse_1.1s_ease-in-out_infinite] rounded-full bg-white" />
-        </div>
+        <div className="mx-auto mt-5 h-8 w-8 rounded-full border-2 border-white/35 border-t-white animate-spin" />
       </div>
     </div>
   );
