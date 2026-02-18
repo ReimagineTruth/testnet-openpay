@@ -31,6 +31,7 @@ import PrivacyPage from "./pages/PrivacyPage";
 import AboutOpenPayPage from "./pages/AboutOpenPayPage";
 import LegalPage from "./pages/LegalPage";
 import OpenPayDocumentationPage from "./pages/OpenPayDocumentationPage";
+import OpenPartnerPage from "./pages/OpenPartnerPage";
 import PiWhitepaperPage from "./pages/PiWhitepaperPage";
 import PiMicaWhitepaperPage from "./pages/PiMicaWhitepaperPage";
 import GdprPage from "./pages/GdprPage";
@@ -105,6 +106,7 @@ const AppRoutes = () => {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/about-openpay" element={<AboutOpenPayPage />} />
         <Route path="/openpay-documentation" element={<OpenPayDocumentationPage />} />
+        <Route path="/open-partner" element={<OpenPartnerPage />} />
         <Route path="/pi-whitepaper" element={<PiWhitepaperPage />} />
         <Route path="/pi-mica-whitepaper" element={<PiMicaWhitepaperPage />} />
         <Route path="/gdpr" element={<GdprPage />} />

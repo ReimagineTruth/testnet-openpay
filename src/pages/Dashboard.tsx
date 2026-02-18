@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, CircleDollarSign, Copy, Eye, EyeOff, FileText, QrCode, RefreshCw, Settings, Users } from "lucide-react";
+import { Bell, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Users } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -35,12 +35,29 @@ interface UserAccount {
   account_username: string;
 }
 
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-};
+type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards";
+
+interface SavingsDashboard {
+  wallet_balance: number;
+  savings_balance: number;
+  apy: number;
+}
+
+interface LoanDashboard {
+  id: string;
+  principal_amount: number;
+  outstanding_amount: number;
+  monthly_payment_amount: number;
+  monthly_fee_rate: number;
+  term_months: number;
+  paid_months: number;
+  credit_score: number;
+  status: string;
+  next_due_date: string;
+  created_at: string;
+}
+
+const getGreeting = () => "Good Day";
 
 const Dashboard = () => {
   const remittanceUiEnabled = isRemittanceUiEnabled();
@@ -64,8 +81,21 @@ const Dashboard = () => {
   const [remittanceMonthIncome, setRemittanceMonthIncome] = useState(0);
   const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
   const [lastAdRunAt, setLastAdRunAt] = useState<number>(0);
+  const [activeSection, setActiveSection] = useState<DashboardSection>("wallet");
+  const [savings, setSavings] = useState<SavingsDashboard | null>(null);
+  const [loan, setLoan] = useState<LoanDashboard | null>(null);
+  const [movingToSavings, setMovingToSavings] = useState(false);
+  const [movingToWallet, setMovingToWallet] = useState(false);
+  const [requestingLoan, setRequestingLoan] = useState(false);
+  const [payingLoan, setPayingLoan] = useState(false);
+  const [savingsAmount, setSavingsAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [loanAmount, setLoanAmount] = useState("");
+  const [loanTermMonths, setLoanTermMonths] = useState("6");
+  const [loanPaymentAmount, setLoanPaymentAmount] = useState("");
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
+  const currencyTag = currency.code === "PI" ? "PI" : `${currency.code} (Pi rate)`;
   const onboardingSteps = [
     {
       title: "Welcome to OpenPay",
@@ -88,6 +118,44 @@ const Dashboard = () => {
       description: "Open the new OpenPay Guide page to see use cases for restaurants, shops, clothing, and digital services.",
     },
   ];
+
+  const loadSavingsAndLoan = async () => {
+    const [{ data: savingsData }, { data: loanData }] = await Promise.all([
+      supabase.rpc("get_my_savings_dashboard"),
+      supabase.rpc("get_my_latest_loan"),
+    ]);
+
+    const savingsRow = Array.isArray(savingsData) ? savingsData[0] : null;
+    const loanRow = Array.isArray(loanData) ? loanData[0] : null;
+
+    setSavings(
+      savingsRow
+        ? {
+            wallet_balance: Number(savingsRow.wallet_balance || 0),
+            savings_balance: Number(savingsRow.savings_balance || 0),
+            apy: Number(savingsRow.apy || 0),
+          }
+        : null,
+    );
+
+    setLoan(
+      loanRow
+        ? {
+            id: String(loanRow.id),
+            principal_amount: Number(loanRow.principal_amount || 0),
+            outstanding_amount: Number(loanRow.outstanding_amount || 0),
+            monthly_payment_amount: Number(loanRow.monthly_payment_amount || 0),
+            monthly_fee_rate: Number(loanRow.monthly_fee_rate || 0),
+            term_months: Number(loanRow.term_months || 0),
+            paid_months: Number(loanRow.paid_months || 0),
+            credit_score: Number(loanRow.credit_score || 620),
+            status: String(loanRow.status || "none"),
+            next_due_date: String(loanRow.next_due_date || ""),
+            created_at: String(loanRow.created_at || ""),
+          }
+        : null,
+    );
+  };
 
   const loadDashboard = async () => {
     setRefreshing(true);
@@ -219,6 +287,7 @@ const Dashboard = () => {
 
       setBalanceHidden(hideBalance);
       setOnboardingStep(prefs.onboarding_step || 0);
+      await loadSavingsAndLoan();
 
       if (!hasAcceptedAgreement) {
         setShowAgreement(true);
@@ -336,6 +405,101 @@ const Dashboard = () => {
     }
   };
 
+  const handleMoveWalletToSavings = async () => {
+    const amount = Number(savingsAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    setMovingToSavings(true);
+    const { error } = await supabase.rpc("transfer_my_wallet_to_savings", {
+      p_amount: amount,
+      p_note: "Dashboard savings transfer",
+    });
+    setMovingToSavings(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSavingsAmount("");
+    toast.success("Moved to savings");
+    await loadDashboard();
+  };
+
+  const handleMoveSavingsToWallet = async () => {
+    const amount = Number(withdrawAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    setMovingToWallet(true);
+    const { error } = await supabase.rpc("transfer_my_savings_to_wallet", {
+      p_amount: amount,
+      p_note: "Dashboard savings withdrawal",
+    });
+    setMovingToWallet(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setWithdrawAmount("");
+    toast.success("Moved to wallet");
+    await loadDashboard();
+  };
+
+  const handleRequestLoan = async () => {
+    const principal = Number(loanAmount);
+    const term = Number(loanTermMonths);
+    if (!Number.isFinite(principal) || principal <= 0) {
+      toast.error("Enter a valid loan amount");
+      return;
+    }
+    if (!Number.isFinite(term) || term < 1) {
+      toast.error("Enter valid term months");
+      return;
+    }
+    setRequestingLoan(true);
+    const { error } = await supabase.rpc("request_my_openpay_loan", {
+      p_principal_amount: principal,
+      p_term_months: term,
+      p_credit_score: null,
+    });
+    setRequestingLoan(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setLoanAmount("");
+    toast.success("Loan approved and credited to wallet");
+    await loadDashboard();
+  };
+
+  const handlePayLoan = async () => {
+    if (!loan?.id || loan.status !== "active") {
+      toast.error("No active loan");
+      return;
+    }
+    const payment = loanPaymentAmount ? Number(loanPaymentAmount) : null;
+    if (loanPaymentAmount && (!Number.isFinite(payment) || Number(payment) <= 0)) {
+      toast.error("Enter a valid payment amount");
+      return;
+    }
+    setPayingLoan(true);
+    const { error } = await supabase.rpc("pay_my_loan_monthly", {
+      p_loan_id: loan.id,
+      p_amount: payment,
+      p_note: "Dashboard monthly loan payment",
+    });
+    setPayingLoan(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setLoanPaymentAmount("");
+    toast.success("Loan payment completed");
+    await loadDashboard();
+  };
+
   return (
     <div className="min-h-screen bg-background pb-28">
       <div className="flex items-center justify-between px-4 pt-5">
@@ -367,6 +531,147 @@ const Dashboard = () => {
         {username && <p className="text-sm text-muted-foreground">@{username}</p>}
       </div>
 
+      <div className="mt-4 px-4">
+        <div className="paypal-surface overflow-x-auto rounded-2xl p-1">
+          <div className="flex min-w-max gap-1">
+            {([
+              { key: "wallet", label: "Wallet" },
+              { key: "savings", label: "Savings" },
+              { key: "credit", label: "Credit" },
+              { key: "loans", label: "Loans" },
+              { key: "cards", label: "Cards" },
+            ] as Array<{ key: DashboardSection; label: string }>).map((item) => (
+              <button
+                key={item.key}
+                onClick={() => setActiveSection(item.key)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  activeSection === item.key
+                    ? "bg-paypal-blue text-white"
+                    : "text-foreground hover:bg-secondary/70"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Display currency: {currencyTag}</p>
+      </div>
+
+      {activeSection === "savings" && (
+        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <PiggyBank className="h-5 w-5 text-paypal-blue" />
+            <h2 className="text-lg font-bold text-paypal-dark">Savings Dashboard</h2>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="text-xs text-muted-foreground">Wallet balance</p>
+              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(savings?.wallet_balance ?? balance)}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="text-xs text-muted-foreground">Savings balance</p>
+              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(savings?.savings_balance ?? 0)}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="text-xs text-muted-foreground">Estimated APY</p>
+              <p className="text-lg font-bold text-paypal-success">{(savings?.apy ?? 0).toFixed(2)}%</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="mb-2 text-sm font-semibold">Move wallet to savings</p>
+              <input value={savingsAmount} onChange={(e) => setSavingsAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
+              <button disabled={movingToSavings} onClick={handleMoveWalletToSavings} className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
+                {movingToSavings ? "Moving..." : "Move to Savings"}
+              </button>
+            </div>
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="mb-2 text-sm font-semibold">Move savings to wallet</p>
+              <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
+              <button disabled={movingToWallet} onClick={handleMoveSavingsToWallet} className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
+                {movingToWallet ? "Moving..." : "Move to Wallet"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "credit" && (
+        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <HandCoins className="h-5 w-5 text-paypal-blue" />
+            <h2 className="text-lg font-bold text-paypal-dark">Credit Overview</h2>
+          </div>
+          <div className="rounded-2xl border border-border/70 p-4">
+            <p className="text-sm text-muted-foreground">Credit score</p>
+            <p className="text-2xl font-bold text-foreground">{loan?.credit_score ?? 620}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Higher score can reduce monthly fee rate on OpenPay loans. Values shown in {currencyTag}.
+            </p>
+          </div>
+          <div className="mt-3 rounded-2xl border border-border/70 p-4 text-sm text-muted-foreground">
+            Credit uses your OpenPay account history, repayment behavior, and account security status.
+          </div>
+        </div>
+      )}
+
+      {activeSection === "loans" && (
+        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <HandCoins className="h-5 w-5 text-paypal-blue" />
+            <h2 className="text-lg font-bold text-paypal-dark">Loans</h2>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="text-xs text-muted-foreground">Outstanding</p>
+              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(loan?.outstanding_amount ?? 0)}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 p-3">
+              <p className="text-xs text-muted-foreground">Monthly payment</p>
+              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(loan?.monthly_payment_amount ?? 0)}</p>
+            </div>
+          </div>
+          <div className="mt-3 rounded-2xl border border-border/70 p-3">
+            <p className="mb-2 text-sm font-semibold">Request a new OpenPay loan</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Loan amount (${currency.code})`} className="h-10 rounded-xl border border-border px-3" />
+              <input value={loanTermMonths} onChange={(e) => setLoanTermMonths(e.target.value)} type="number" min="1" max="60" placeholder="Term months" className="h-10 rounded-xl border border-border px-3" />
+            </div>
+            <button disabled={requestingLoan} onClick={handleRequestLoan} className="mt-2 h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
+              {requestingLoan ? "Processing..." : "Request Loan"}
+            </button>
+          </div>
+          <div className="mt-3 rounded-2xl border border-border/70 p-3">
+            <p className="mb-2 text-sm font-semibold">Pay monthly installment</p>
+            <input value={loanPaymentAmount} onChange={(e) => setLoanPaymentAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Default: ${loan ? formatCurrency(loan.monthly_payment_amount) : `monthly due (${currency.code})`}`} className="h-10 w-full rounded-xl border border-border px-3" />
+            <button disabled={payingLoan || !loan || loan.status !== "active"} onClick={handlePayLoan} className="mt-2 h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
+              {payingLoan ? "Paying..." : "Pay Loan"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "cards" && (
+        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-paypal-blue" />
+            <h2 className="text-lg font-bold text-paypal-dark">Cards</h2>
+          </div>
+          <div className="rounded-2xl border border-border/70 p-4">
+            <p className="text-sm font-semibold text-foreground">OpenPay Virtual Card</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage card controls, card signature, checkout permissions, and merchant payments.
+            </p>
+            <button onClick={() => navigate("/virtual-card")} className="mt-3 h-10 rounded-xl bg-paypal-blue px-4 text-sm font-semibold text-white">
+              Open Virtual Card
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "wallet" && (
+      <>
       <div className="mx-4 mt-4 rounded-3xl border border-white/30 bg-gradient-to-br from-paypal-blue to-[#0073e6] p-6 shadow-xl shadow-[#004bba]/25">
         <div className="flex items-center gap-3 text-white">
           <BrandLogo className="h-8 w-8" />
@@ -498,6 +803,8 @@ const Dashboard = () => {
           <button onClick={() => navigate("/topup")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Top Up</button>
         </div>
       </div>
+      </>
+      )}
 
       <BottomNav active="home" />
       <TransactionReceipt open={receiptOpen} onOpenChange={setReceiptOpen} receipt={receiptData} />

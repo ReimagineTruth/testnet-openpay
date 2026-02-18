@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 import { canAccessRemittanceMerchant, isRemittanceUiEnabled } from "@/lib/remittanceAccess";
@@ -166,6 +166,7 @@ const MenuPage = () => {
         { icon: Smartphone, label: "OpenApp Utility Apps", action: () => navigate("/openapp") },
         { icon: Store, label: "Where to use OpenPay", action: () => navigate("/openpay-guide") },
         { icon: BookOpen, label: "OpenPay Documentation", action: () => navigate("/openpay-documentation") },
+        { icon: Handshake, label: "Open Partner", action: () => navigate("/open-partner") },
         { icon: FileText, label: "Pi Whitepaper", action: () => navigate("/pi-whitepaper") },
         { icon: FileText, label: "Pi MiCA Whitepaper", action: () => navigate("/pi-mica-whitepaper") },
         { icon: ShieldCheck, label: "GDPR", action: () => navigate("/gdpr") },

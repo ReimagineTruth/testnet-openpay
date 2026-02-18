@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, HelpCircle, ImageIcon } from "lucide-react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -194,6 +194,12 @@ const QrScannerPage = () => {
         const scanConfig = {
           fps: 12,
           disableFlip: false,
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const box = Math.max(180, Math.floor(minEdge * 0.68));
+            return { width: box, height: box };
+          },
         };
 
         let started = false;

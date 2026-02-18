@@ -114,6 +114,7 @@ const VirtualCardPage = () => {
   const hideDetails = card?.hide_details ?? false;
   const isLocked = card?.is_locked ?? false;
   const allowCheckout = card?.card_settings?.allow_checkout ?? true;
+  const signatureDisplay = cardSignature.trim() || "Signature";
 
   const handleFlip = () => {
     setFlipTurns((value) => value + 1);
@@ -214,8 +215,11 @@ const VirtualCardPage = () => {
                 </p>
               </div>
               <div className="relative mt-[6%] h-[16%] rounded-md bg-black/70">
-                <p className="absolute inset-0 flex items-center justify-center px-3 text-sm italic text-white/85">
-                  {cardSignature.trim() || "Signature"}
+                <p
+                  className="absolute inset-0 flex items-center justify-center px-3 text-base text-white/90"
+                  style={{ fontFamily: '"Brush Script MT","Segoe Script","Lucida Handwriting",cursive' }}
+                >
+                  {signatureDisplay}
                 </p>
               </div>
               <div className="mt-[10%] flex items-center justify-between">
@@ -303,18 +307,6 @@ const VirtualCardPage = () => {
                 {allowCheckout ? "Enabled" : "Disabled"}
               </Button>
             </div>
-            <div className="mt-3">
-              <p className="text-sm font-medium text-foreground">Back-card signature</p>
-              <Input
-                value={cardSignature}
-                onChange={(e) => setCardSignature(e.target.value.slice(0, 32))}
-                placeholder="Type your signature"
-                className="mt-2 h-10 rounded-xl"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                This signature is shown on the back of your virtual card.
-              </p>
-            </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Card status: {isLocked ? "Locked" : "Active"} {card?.locked_at ? `| Locked at: ${new Date(card.locked_at).toLocaleString()}` : ""}
             </p>
@@ -356,6 +348,21 @@ const VirtualCardPage = () => {
               placeholder="CVC"
               className="h-12 rounded-2xl bg-secondary/50 font-mono"
             />
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Card signature</p>
+              <Input
+                value={cardSignature}
+                onChange={(e) => setCardSignature(e.target.value.slice(0, 32))}
+                placeholder="Type your signature"
+                className="h-12 rounded-2xl bg-white"
+              />
+              <p
+                className="mt-1 text-sm text-muted-foreground"
+                style={{ fontFamily: '"Brush Script MT","Segoe Script","Lucida Handwriting",cursive' }}
+              >
+                Preview: {signatureDisplay}
+              </p>
+            </div>
             <Button
               type="button"
               variant="outline"
