@@ -444,31 +444,35 @@ const MerchantOnboardingPage = () => {
         </main>
       </div>
 
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 md:hidden" onClick={() => setMobileNavOpen(false)}>
-          <div className="ml-auto flex h-full w-80 max-w-[85%] flex-col bg-white p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-lg font-bold text-slate-900">Merchant Menu</p>
-              <button onClick={() => setMobileNavOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200" aria-label="Close navigation">
-                <X className="h-4 w-4 text-slate-700" />
-              </button>
-            </div>
-            <nav className="space-y-1">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const active = activeView === item.key;
-                return (
-                  <button key={item.key} onClick={() => setActiveView(item.key)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}>
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </nav>
-            <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>
+      <div
+        className={`fixed inset-0 z-50 transition-colors duration-300 md:hidden ${mobileNavOpen ? "bg-black/40" : "pointer-events-none bg-black/0"}`}
+        onClick={() => setMobileNavOpen(false)}
+      >
+        <div
+          className={`ml-auto flex h-full w-80 max-w-[85%] flex-col bg-white p-4 shadow-2xl transition-transform duration-300 ease-out ${mobileNavOpen ? "translate-x-0" : "translate-x-full"}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-lg font-bold text-slate-900">Merchant Menu</p>
+            <button onClick={() => setMobileNavOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200" aria-label="Close navigation">
+              <X className="h-4 w-4 text-slate-700" />
+            </button>
           </div>
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeView === item.key;
+              return (
+                <button key={item.key} onClick={() => setActiveView(item.key)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}>
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
+          <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>
         </div>
-      )}
+      </div>
     </div>
   );
 };
