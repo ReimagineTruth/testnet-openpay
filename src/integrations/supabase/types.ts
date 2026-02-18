@@ -337,6 +337,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          account_username: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name?: string
+          account_number: string
+          account_username?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          account_username?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       supported_currencies: {
         Row: {
           created_at: string
@@ -451,6 +481,60 @@ export type Database = {
         }
         Relationships: []
       }
+      virtual_cards: {
+        Row: {
+          card_number: string
+          card_settings: Json
+          card_username: string
+          cardholder_name: string
+          created_at: string
+          cvc: string
+          hide_details: boolean
+          expiry_month: number
+          expiry_year: number
+          id: string
+          is_active: boolean
+          is_locked: boolean
+          locked_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          card_number: string
+          card_settings?: Json
+          card_username?: string
+          cardholder_name?: string
+          created_at?: string
+          cvc: string
+          hide_details?: boolean
+          expiry_month: number
+          expiry_year: number
+          id?: string
+          is_active?: boolean
+          is_locked?: boolean
+          locked_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          card_number?: string
+          card_settings?: Json
+          card_username?: string
+          cardholder_name?: string
+          created_at?: string
+          cvc?: string
+          hide_details?: boolean
+          expiry_month?: number
+          expiry_year?: number
+          id?: string
+          is_active?: boolean
+          is_locked?: boolean
+          locked_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       wallets: {
         Row: {
           balance: number
@@ -500,9 +584,30 @@ export type Database = {
         Args: never
         Returns: Json
       }
+      find_user_by_account_number: {
+        Args: { p_account_number: string }
+        Returns: {
+          avatar_url: string | null
+          full_name: string
+          id: string
+          username: string | null
+        }[]
+      }
       is_transaction_participant: {
         Args: { _transaction_id: string }
         Returns: boolean
+      }
+      pay_with_virtual_card_checkout: {
+        Args: {
+          p_amount: number
+          p_card_number: string
+          p_cvc: string
+          p_expiry_month: number
+          p_expiry_year: number
+          p_note?: string
+          p_receiver_id: string
+        }
+        Returns: string
       }
       transfer_funds: {
         Args: {
@@ -512,6 +617,62 @@ export type Database = {
           p_sender_id: string
         }
         Returns: string
+      }
+      update_my_virtual_card_controls: {
+        Args: {
+          p_card_settings?: Json | null
+          p_hide_details?: boolean | null
+          p_lock_card?: boolean | null
+        }
+        Returns: {
+          card_number: string
+          card_settings: Json
+          card_username: string
+          cardholder_name: string
+          created_at: string
+          cvc: string
+          hide_details: boolean
+          expiry_month: number
+          expiry_year: number
+          id: string
+          is_active: boolean
+          is_locked: boolean
+          locked_at: string | null
+          updated_at: string
+          user_id: string
+        }
+      }
+      upsert_my_user_account: {
+        Args: never
+        Returns: {
+          account_name: string
+          account_number: string
+          account_username: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+      }
+      upsert_my_virtual_card: {
+        Args: { p_cardholder_name?: string | null; p_card_username?: string | null }
+        Returns: {
+          card_number: string
+          card_settings: Json
+          card_username: string
+          cardholder_name: string
+          created_at: string
+          cvc: string
+          hide_details: boolean
+          expiry_month: number
+          expiry_year: number
+          id: string
+          is_active: boolean
+          is_locked: boolean
+          locked_at: string | null
+          updated_at: string
+          user_id: string
+        }
       }
     }
     Enums: {

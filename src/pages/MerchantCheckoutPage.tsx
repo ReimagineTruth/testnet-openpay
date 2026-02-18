@@ -21,6 +21,11 @@ const MerchantCheckoutPage = () => {
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
   const [transactionId, setTransactionId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"balance" | "virtual_card">("balance");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiryMonth, setCardExpiryMonth] = useState("");
+  const [cardExpiryYear, setCardExpiryYear] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
 
   const merchantId = searchParams.get("merchantId") || "";
   const productName = searchParams.get("productName") || "Merchant product";
@@ -95,19 +100,41 @@ const MerchantCheckoutPage = () => {
         .filter(Boolean)
         .join(" | ");
 
-      const { data, error } = await supabase.functions.invoke("send-money", {
-        body: {
-          receiver_email: "__by_id__",
-          receiver_id: merchantId,
-          amount: safeAmount,
-          note,
-        },
-      });
-      if (error) {
-        throw new Error(await getFunctionErrorMessage(error, "Payment failed"));
+      let txid = "";
+      if (paymentMethod === "balance") {
+        const { data, error } = await supabase.functions.invoke("send-money", {
+          body: {
+            receiver_email: "__by_id__",
+            receiver_id: merchantId,
+            amount: safeAmount,
+            note,
+          },
+        });
+        if (error) {
+          throw new Error(await getFunctionErrorMessage(error, "Payment failed"));
+        }
+        txid = (data as { transaction_id?: string } | null)?.transaction_id || "";
+      } else {
+        const parsedMonth = Number(cardExpiryMonth);
+        const parsedYear = Number(cardExpiryYear);
+        if (!cardNumber.trim() || !cardExpiryMonth.trim() || !cardExpiryYear.trim() || !cardCvc.trim()) {
+          throw new Error("Card number, expiry month, expiry year, and CVC are required");
+        }
+        const { data: rpcTxId, error: rpcError } = await supabase.rpc("pay_with_virtual_card_checkout", {
+          p_card_number: cardNumber,
+          p_expiry_month: parsedMonth,
+          p_expiry_year: parsedYear,
+          p_cvc: cardCvc,
+          p_receiver_id: merchantId,
+          p_amount: safeAmount,
+          p_note: note,
+        });
+        if (rpcError) {
+          throw rpcError;
+        }
+        txid = rpcTxId || "";
       }
 
-      const txid = (data as { transaction_id?: string } | null)?.transaction_id || "";
       setTransactionId(txid);
       setPaid(true);
 
@@ -130,7 +157,7 @@ const MerchantCheckoutPage = () => {
         status: "paid",
       });
 
-      toast.success("Payment successful");
+      toast.success(paymentMethod === "balance" ? "Payment successful" : "Virtual card payment successful");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Payment failed");
     } finally {
@@ -177,12 +204,78 @@ const MerchantCheckoutPage = () => {
           <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Phone number" className="h-12 rounded-2xl bg-white" />
           <Input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} placeholder="Address (optional)" className="h-12 rounded-2xl bg-white" />
         </div>
+        <div className="mt-4 rounded-2xl border border-border/70 p-3">
+          <p className="text-sm font-semibold text-foreground">Payment Method</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("balance")}
+              className={`h-10 rounded-xl text-sm font-medium transition ${
+                paymentMethod === "balance" ? "bg-paypal-blue text-white" : "bg-secondary text-foreground"
+              }`}
+            >
+              OpenPay Balance
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("virtual_card")}
+              className={`h-10 rounded-xl text-sm font-medium transition ${
+                paymentMethod === "virtual_card" ? "bg-paypal-blue text-white" : "bg-secondary text-foreground"
+              }`}
+            >
+              Virtual Card
+            </button>
+          </div>
+
+          {paymentMethod === "virtual_card" && (
+            <div className="mt-3 space-y-2">
+              <Input
+                value={cardNumber}
+                onChange={(e) => setCardNumber(e.target.value)}
+                placeholder="Card number"
+                className="h-11 rounded-2xl bg-white font-mono"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                <Input
+                  value={cardExpiryMonth}
+                  onChange={(e) => setCardExpiryMonth(e.target.value)}
+                  placeholder="MM"
+                  className="h-11 rounded-2xl bg-white font-mono"
+                />
+                <Input
+                  value={cardExpiryYear}
+                  onChange={(e) => setCardExpiryYear(e.target.value)}
+                  placeholder="YYYY"
+                  className="h-11 rounded-2xl bg-white font-mono"
+                />
+                <Input
+                  value={cardCvc}
+                  onChange={(e) => setCardCvc(e.target.value)}
+                  placeholder="CVC"
+                  className="h-11 rounded-2xl bg-white font-mono"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enter your OpenPay virtual card details to complete checkout.
+              </p>
+            </div>
+          )}
+        </div>
         <p className="mt-3 text-xs text-muted-foreground">
           Payment deducts from your OpenPay balance and sends merchant payment instantly.
         </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          OpenPay virtual card is valid only for OpenPay Merchant Checkout. It cannot be used for ATM withdrawals, bank terminals, or non-OpenPay transactions.
+        </p>
         <Button
           onClick={handlePay}
-          disabled={paying || !safeAmount || !customerName.trim()}
+          disabled={
+            paying ||
+            !safeAmount ||
+            !customerName.trim() ||
+            (paymentMethod === "virtual_card" &&
+              (!cardNumber.trim() || !cardExpiryMonth.trim() || !cardExpiryYear.trim() || !cardCvc.trim()))
+          }
           className="mt-4 h-12 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
         >
           {paying ? "Processing payment..." : `Pay ${currency} ${safeAmount.toFixed(2)}`}

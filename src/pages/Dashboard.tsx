@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, CircleDollarSign, Eye, EyeOff, FileText, QrCode, RefreshCw, Settings, Users } from "lucide-react";
+import { Bell, CircleDollarSign, Copy, Eye, EyeOff, FileText, QrCode, RefreshCw, Settings, Users } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -27,6 +27,12 @@ interface Transaction {
   other_avatar_url?: string | null;
   is_sent?: boolean;
   is_topup?: boolean;
+}
+
+interface UserAccount {
+  account_number: string;
+  account_name: string;
+  account_username: string;
 }
 
 const getGreeting = () => {
@@ -56,6 +62,7 @@ const Dashboard = () => {
   const [remittanceFeeIncome, setRemittanceFeeIncome] = useState(0);
   const [remittanceTxCount, setRemittanceTxCount] = useState(0);
   const [remittanceMonthIncome, setRemittanceMonthIncome] = useState(0);
+  const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const onboardingSteps = [
@@ -114,6 +121,9 @@ const Dashboard = () => {
         .eq("user_id", user.id)
         .single();
       setBalance(wallet?.balance || 0);
+
+      const { data: accountData } = await supabase.rpc("upsert_my_user_account");
+      setUserAccount(accountData as unknown as UserAccount);
 
       const { data: txs } = await supabase
         .from("transactions")
@@ -267,6 +277,16 @@ const Dashboard = () => {
     setReceiptOpen(true);
   };
 
+  const copyAccountNumber = async () => {
+    if (!userAccount?.account_number) return;
+    try {
+      await navigator.clipboard.writeText(userAccount.account_number);
+      toast.success("Account number copied");
+    } catch {
+      toast.error("Unable to copy account number");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-28">
       <div className="flex items-center justify-between px-4 pt-5">
@@ -318,6 +338,36 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      {userAccount && (
+        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay Account</p>
+              <p className="mt-1 text-base font-bold text-foreground">{userAccount.account_name}</p>
+              <p className="text-sm text-muted-foreground">@{userAccount.account_username}</p>
+              <p className="mt-2 text-sm font-mono text-foreground">{userAccount.account_number}</p>
+            </div>
+            <button
+              type="button"
+              onClick={copyAccountNumber}
+              className="rounded-xl border border-border/70 bg-white px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
+            >
+              <Copy className="mr-1 inline h-4 w-4" />
+              Copy
+            </button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/virtual-card")}
+              className="rounded-xl bg-paypal-blue px-3 py-2 text-sm font-semibold text-white hover:bg-[#004dc5]"
+            >
+              Open Virtual Card
+            </button>
+          </div>
+        </div>
+      )}
 
       {remittanceUiEnabled && (
         <div className="mx-4 mt-4 grid gap-3 sm:grid-cols-3">

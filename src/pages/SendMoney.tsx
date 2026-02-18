@@ -40,6 +40,8 @@ const SendMoney = () => {
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [myFullName, setMyFullName] = useState("");
+  const [accountLookupResult, setAccountLookupResult] = useState<UserProfile | null>(null);
+  const [accountLookupLoading, setAccountLookupLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currencies, currency, setCurrency, format: formatCurrency } = useCurrency();
@@ -125,6 +127,8 @@ const SendMoney = () => {
   }, [currencies, navigate, searchParams, setCurrency]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
+  const normalizedSearchRaw = searchQuery.trim();
+  const isAccountNumberSearch = normalizedSearchRaw.toUpperCase().startsWith("OP");
   const normalizedUsernameSearch = normalizedSearch.startsWith("@")
     ? normalizedSearch.slice(1)
     : normalizedSearch;
@@ -140,6 +144,32 @@ const SendMoney = () => {
         );
       })
     : contacts;
+  const filteredWithoutAccountMatch = accountLookupResult
+    ? filtered.filter((user) => user.id !== accountLookupResult.id)
+    : filtered;
+
+  useEffect(() => {
+    const lookup = async () => {
+      if (!isAccountNumberSearch || normalizedSearchRaw.length < 8) {
+        setAccountLookupResult(null);
+        setAccountLookupLoading(false);
+        return;
+      }
+      setAccountLookupLoading(true);
+      const { data, error } = await supabase.rpc("find_user_by_account_number", {
+        p_account_number: normalizedSearchRaw.toUpperCase(),
+      });
+      if (error) {
+        setAccountLookupResult(null);
+        setAccountLookupLoading(false);
+        return;
+      }
+      const row = (data as UserProfile[] | null)?.[0] || null;
+      setAccountLookupResult(row);
+      setAccountLookupLoading(false);
+    };
+    void lookup();
+  }, [isAccountNumberSearch, normalizedSearchRaw]);
 
   const toggleBookmark = async (profile: UserProfile) => {
     const {
@@ -407,7 +437,7 @@ const SendMoney = () => {
         )}
         <button onClick={() => navigate("/dashboard")}><ArrowLeft className="w-6 h-6 text-foreground" /></button>
         <div className="flex-1">
-          <Input placeholder="Name, username or email" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+          <Input placeholder="Name, username, email, or account number" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             className="h-12 rounded-full border border-white/70 bg-white pl-4" autoFocus />
         </div>
         <button
@@ -456,7 +486,28 @@ const SendMoney = () => {
 
         <h2 className="mb-4 font-bold text-foreground">{searchQuery ? "Search results" : "Your contacts"}</h2>
         <div className="paypal-surface overflow-hidden rounded-2xl">
-          {filtered.map((user, i) => (
+          {isAccountNumberSearch && (
+            <>
+              {accountLookupLoading && (
+                <p className="border-b border-border/70 px-3 py-3 text-sm text-muted-foreground">Searching account number...</p>
+              )}
+              {!accountLookupLoading && accountLookupResult && (
+                <div
+                  onClick={() => handleSelectUser(accountLookupResult)}
+                  className="flex w-full items-center gap-3 border-b border-border/70 px-3 py-3 text-left hover:bg-secondary/50 transition cursor-pointer"
+                >
+                  {renderAvatar(accountLookupResult, 0)}
+                  <div className="text-left flex-1">
+                    <p className="font-semibold text-foreground">{accountLookupResult.full_name}</p>
+                    {accountLookupResult.username && <p className="text-sm text-muted-foreground">@{accountLookupResult.username}</p>}
+                    <p className="text-xs text-muted-foreground">Matched by account number</p>
+                  </div>
+                  <Info className="w-5 h-5 text-muted-foreground" />
+                </div>
+              )}
+            </>
+          )}
+          {filteredWithoutAccountMatch.map((user, i) => (
             <div
               key={user.id}
               onClick={() => handleSelectUser(user)}
@@ -481,7 +532,9 @@ const SendMoney = () => {
               <Info className="w-5 h-5 text-muted-foreground" />
             </div>
           ))}
-          {filtered.length === 0 && <p className="text-center text-muted-foreground py-8">No users found</p>}
+          {filteredWithoutAccountMatch.length === 0 && !accountLookupResult && !accountLookupLoading && (
+            <p className="text-center text-muted-foreground py-8">No users found</p>
+          )}
         </div>
       </div>
 
