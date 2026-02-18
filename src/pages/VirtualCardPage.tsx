@@ -197,6 +197,11 @@ const VirtualCardPage = () => {
               <p className="mt-[8%] text-sm text-white/80">
                 {hideDetails ? "**** **** **** ****" : maskedCardNumber}
               </p>
+              <div className="mt-[6%] flex justify-end">
+                <p className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-white/80">
+                  Powered by Pi Network
+                </p>
+              </div>
               <p className="mt-[8%] text-xs text-white/70">
                 Tap card to flip {isBackVisible ? "to front" : "to back"}
               </p>
