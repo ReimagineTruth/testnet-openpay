@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import BrandLogo from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
-import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import { setAppCookie } from "@/lib/userPreferences";
 
 const PiAuthPage = () => {
@@ -120,42 +119,6 @@ const PiAuthPage = () => {
     };
   };
 
-  const verifyRewardedAd = async (adId: string) => {
-    const { data, error } = await supabase.functions.invoke("pi-platform", {
-      body: { action: "ad_verify", adId },
-    });
-    if (error) throw new Error(await getFunctionErrorMessage(error, "Pi ad verification failed"));
-
-    const payload = data as
-      | { success?: boolean; data?: { mediator_ack_status?: string | null }; rewarded?: boolean; error?: string }
-      | null;
-    if (!payload?.success) {
-      throw new Error(payload?.error || "Pi ad verification failed");
-    }
-    return payload;
-  };
-
-  const maybeRunRewardedAd = async () => {
-    if (!window.Pi?.Ads?.showAd) return;
-    try {
-      if (window.Pi.nativeFeaturesList) {
-        const features = await window.Pi.nativeFeaturesList();
-        if (!features.includes("ad_network")) return;
-      }
-
-      const adResult = await window.Pi.Ads.showAd("rewarded");
-      if (adResult.result !== "AD_REWARDED") return;
-      if (!adResult.adId) return;
-
-      const verification = await verifyRewardedAd(adResult.adId);
-      if ((verification as { rewarded?: boolean } | null)?.rewarded) {
-        toast.success("Ad reward verified");
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Rewarded ad failed");
-    }
-  };
-
   const handlePiAuth = async () => {
     if (!initPi() || !window.Pi) return;
     setBusyAuth(true);
@@ -202,8 +165,6 @@ const PiAuthPage = () => {
           return;
         }
       }
-
-      await maybeRunRewardedAd();
 
       setPiUser({ uid: verified.uid, username });
       toast.success(`Authenticated as @${username}`);

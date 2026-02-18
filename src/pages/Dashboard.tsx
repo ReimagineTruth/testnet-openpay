@@ -63,6 +63,7 @@ const Dashboard = () => {
   const [remittanceTxCount, setRemittanceTxCount] = useState(0);
   const [remittanceMonthIncome, setRemittanceMonthIncome] = useState(0);
   const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
+  const [lastAdRunAt, setLastAdRunAt] = useState<number>(0);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const onboardingSteps = [
@@ -233,6 +234,54 @@ const Dashboard = () => {
   useEffect(() => {
     loadDashboard();
   }, [navigate]);
+
+  useEffect(() => {
+    const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
+    const inPiBrowser =
+      typeof navigator !== "undefined" &&
+      /pi\s?browser/i.test(navigator.userAgent || "");
+
+    const runPiAdAuto = async () => {
+      if (typeof window === "undefined" || document.visibilityState !== "visible") return;
+      if (!inPiBrowser) return;
+      if (!window.Pi?.Ads?.showAd) return;
+      if (Date.now() - lastAdRunAt < 5 * 60 * 1000) return;
+
+      try {
+        window.Pi.init({ version: "2.0", sandbox });
+
+        if (window.Pi.nativeFeaturesList) {
+          const features = await window.Pi.nativeFeaturesList();
+          if (!features.includes("ad_network")) return;
+        }
+
+        const adResult = await window.Pi.Ads.showAd("rewarded");
+        if (adResult.result !== "AD_REWARDED" || !adResult.adId) {
+          setLastAdRunAt(Date.now());
+          return;
+        }
+
+        await supabase.functions.invoke("pi-platform", {
+          body: { action: "ad_verify", adId: adResult.adId },
+        });
+        setLastAdRunAt(Date.now());
+      } catch {
+        // Silent by design: auto ad trigger should not interrupt dashboard usage.
+      }
+    };
+
+    const initialTimer = window.setTimeout(() => {
+      void runPiAdAuto();
+    }, 2500);
+    const intervalTimer = window.setInterval(() => {
+      void runPiAdAuto();
+    }, 5 * 60 * 1000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalTimer);
+    };
+  }, [lastAdRunAt]);
 
   const handleAcceptAgreement = () => {
     if (!userId || !agreementChecked) return;
