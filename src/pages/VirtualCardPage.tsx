@@ -41,6 +41,8 @@ const VirtualCardPage = () => {
   const [showGuide, setShowGuide] = useState(false);
   const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
+  const [cardSignature, setCardSignature] = useState("");
+  const [signatureLoaded, setSignatureLoaded] = useState(false);
 
   const maskedCardNumber = useMemo(() => {
     if (!card?.card_number) return "0000 0000 0000 0000";
@@ -48,6 +50,11 @@ const VirtualCardPage = () => {
     const masked = clean.slice(0, 4) + " **** **** " + clean.slice(-4);
     return masked;
   }, [card?.card_number]);
+
+  const signatureStorageKey = useMemo(
+    () => (userId ? `openpay_virtual_card_signature_${userId}` : ""),
+    [userId],
+  );
 
   const loadVirtualCard = async () => {
     setLoading(true);
@@ -90,6 +97,18 @@ const VirtualCardPage = () => {
   useEffect(() => {
     loadVirtualCard();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!signatureStorageKey || typeof window === "undefined") return;
+    const saved = localStorage.getItem(signatureStorageKey) || "";
+    setCardSignature(saved);
+    setSignatureLoaded(true);
+  }, [signatureStorageKey]);
+
+  useEffect(() => {
+    if (!signatureStorageKey || !signatureLoaded || typeof window === "undefined") return;
+    localStorage.setItem(signatureStorageKey, cardSignature);
+  }, [signatureStorageKey, signatureLoaded, cardSignature]);
 
   const isBackVisible = flipTurns % 2 !== 0;
   const hideDetails = card?.hide_details ?? false;
@@ -185,11 +204,20 @@ const VirtualCardPage = () => {
             </div>
 
             <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#1b1f31] to-[#2a3150] p-[6%] text-white shadow-xl shadow-black/30 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-              <div className="flex items-center gap-2">
-                <BrandLogo className="h-6 w-6" />
-                <p className="text-sm font-semibold tracking-wide text-white/90">OpenPay</p>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <BrandLogo className="h-6 w-6" />
+                  <p className="text-sm font-semibold tracking-wide text-white/90">OpenPay</p>
+                </div>
+                <p className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[9px] font-medium uppercase tracking-wide text-white/80">
+                  Powered by Pi Network
+                </p>
               </div>
-              <div className="mt-[6%] h-[16%] rounded-md bg-black/70" />
+              <div className="relative mt-[6%] h-[16%] rounded-md bg-black/70">
+                <p className="absolute inset-0 flex items-center justify-center px-3 text-sm italic text-white/85">
+                  {cardSignature.trim() || "Signature"}
+                </p>
+              </div>
               <div className="mt-[10%] flex items-center justify-between">
                 <p className="text-xs uppercase tracking-wide text-white/70">Security Code</p>
                 <p className="rounded-md bg-white/20 px-2 py-1 text-sm font-semibold">{hideDetails ? "***" : (card?.cvc || "***")}</p>
@@ -197,11 +225,6 @@ const VirtualCardPage = () => {
               <p className="mt-[8%] text-sm text-white/80">
                 {hideDetails ? "**** **** **** ****" : maskedCardNumber}
               </p>
-              <div className="mt-[6%] flex justify-end">
-                <p className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-white/80">
-                  Powered by Pi Network
-                </p>
-              </div>
               <p className="mt-[8%] text-xs text-white/70">
                 Tap card to flip {isBackVisible ? "to front" : "to back"}
               </p>
@@ -279,6 +302,18 @@ const VirtualCardPage = () => {
               >
                 {allowCheckout ? "Enabled" : "Disabled"}
               </Button>
+            </div>
+            <div className="mt-3">
+              <p className="text-sm font-medium text-foreground">Back-card signature</p>
+              <Input
+                value={cardSignature}
+                onChange={(e) => setCardSignature(e.target.value.slice(0, 32))}
+                placeholder="Type your signature"
+                className="mt-2 h-10 rounded-xl"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                This signature is shown on the back of your virtual card.
+              </p>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Card status: {isLocked ? "Locked" : "Active"} {card?.locked_at ? `| Locked at: ${new Date(card.locked_at).toLocaleString()}` : ""}

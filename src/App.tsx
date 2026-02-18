@@ -129,6 +129,7 @@ const AppRoutes = () => {
             </div>
             <p className="text-3xl font-bold tracking-tight text-white">OpenPay</p>
             <p className="mt-1 text-sm text-white/85">Loading page...</p>
+            <p className="mt-1 text-xs uppercase tracking-wide text-white/70">Powered by Pi Network</p>
             <div className="mx-auto mt-4 h-8 w-8 animate-spin rounded-full border-2 border-white/35 border-t-white" />
           </div>
         </div>
