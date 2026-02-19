@@ -112,10 +112,10 @@ BEGIN
     RAISE EXCEPTION 'Complete all required loan form fields';
   END IF;
 
-  SELECT id INTO v_existing_id
-  FROM public.user_loan_applications
-  WHERE user_id = v_user_id
-    AND status = 'pending'
+  SELECT ula.id INTO v_existing_id
+  FROM public.user_loan_applications ula
+  WHERE ula.user_id = v_user_id
+    AND ula.status = 'pending'
   ORDER BY created_at DESC
   LIMIT 1;
 
@@ -123,10 +123,10 @@ BEGIN
     RAISE EXCEPTION 'You already have a pending loan application';
   END IF;
 
-  SELECT id INTO v_existing_id
-  FROM public.user_loans
-  WHERE user_id = v_user_id
-    AND status IN ('pending', 'active')
+  SELECT ul.id INTO v_existing_id
+  FROM public.user_loans ul
+  WHERE ul.user_id = v_user_id
+    AND ul.status IN ('pending', 'active')
   ORDER BY created_at DESC
   LIMIT 1;
 
@@ -298,7 +298,7 @@ BEGIN
   FROM public.user_loans
   WHERE id = p_loan_id
     AND user_id = v_user_id
-    AND status = 'active'
+    AND public.user_loans.status = 'active'
   FOR UPDATE;
 
   IF NOT FOUND THEN
@@ -538,10 +538,10 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  SELECT id INTO v_existing
-  FROM public.user_loans
-  WHERE user_id = v_app.user_id
-    AND status IN ('pending', 'active')
+  SELECT ul.id INTO v_existing
+  FROM public.user_loans ul
+  WHERE ul.user_id = v_app.user_id
+    AND ul.status IN ('pending', 'active')
   LIMIT 1;
 
   IF v_existing IS NOT NULL THEN

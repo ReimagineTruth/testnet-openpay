@@ -55,17 +55,48 @@ const extractQrPayload = (rawValue: string) => {
   };
 };
 
+const isOpenPayQrCode = (rawValue: string) => {
+  const value = rawValue.trim();
+  if (!value) return false;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(value)) return true;
+
+  try {
+    const parsed = new URL(value);
+    const protocol = parsed.protocol.toLowerCase();
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    const hasRecipient = Boolean(parsed.searchParams.get("uid") || parsed.searchParams.get("to") || parsed.searchParams.get("username"));
+
+    if (protocol === "openpay:") {
+      return hasRecipient && (host === "pay" || host === "send");
+    }
+
+    if (protocol === "http:" || protocol === "https:") {
+      const isOpenPayDomain = host.includes("openpay");
+      const isPayPath = path.startsWith("/send") || path.startsWith("/pay");
+      return hasRecipient && isPayPath && isOpenPayDomain;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+};
+
 const QrScannerPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [scanError, setScanError] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [scanHint, setScanHint] = useState("Initializing camera...");
   const [pastedCode, setPastedCode] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const handlingDecodeRef = useRef(false);
   const lastInvalidToastAtRef = useRef(0);
+  const lastHintUpdateRef = useRef(0);
 
   const returnTo = useMemo(() => {
     const requested = searchParams.get("returnTo") || "/send";
@@ -103,6 +134,18 @@ const QrScannerPage = () => {
     handlingDecodeRef.current = true;
 
     try {
+      if (!isOpenPayQrCode(decodedText)) {
+        const now = Date.now();
+        setScanHint("QR detected, but this is not an OpenPay QR code.");
+        if (now - lastInvalidToastAtRef.current > 1800) {
+          toast.error("Only OpenPay QR codes are allowed");
+          lastInvalidToastAtRef.current = now;
+        }
+        handlingDecodeRef.current = false;
+        return;
+      }
+
+      setScanHint("OpenPay QR detected. Validating...");
       const payload = extractQrPayload(decodedText);
       let recipientId = payload.uid;
       if (!recipientId && payload.username) {
@@ -117,6 +160,7 @@ const QrScannerPage = () => {
 
       if (!recipientId) {
         const now = Date.now();
+        setScanHint("OpenPay QR format is valid, but recipient was not found.");
         if (now - lastInvalidToastAtRef.current > 1800) {
           toast.error("Invalid QR code");
           lastInvalidToastAtRef.current = now;
@@ -136,6 +180,7 @@ const QrScannerPage = () => {
         params.set("note", payload.note);
       }
 
+      setScanHint("Recipient found. Opening payment...");
       await stopScanner();
       navigate(`${returnTo}?${params.toString()}`, { replace: true });
     } finally {
@@ -212,12 +257,27 @@ const QrScannerPage = () => {
           try {
             await scanner.start(source, scanConfig, (decodedText) => {
               void handleDecoded(decodedText);
-            }, () => undefined);
+            }, (errorMessage) => {
+              const now = Date.now();
+              if (now - lastHintUpdateRef.current < 400) return;
+              lastHintUpdateRef.current = now;
+              const raw = String(errorMessage || "").toLowerCase();
+              if (raw.includes("notfoundexception") || raw.includes("no multi-format readers")) {
+                setScanHint("No QR detected yet. Keep the code inside the frame.");
+                return;
+              }
+              if (raw.includes("checksum") || raw.includes("format") || raw.includes("decode")) {
+                setScanHint("QR is blurry or unclear. Move closer and improve lighting.");
+                return;
+              }
+              setScanHint("Scanning in progress...");
+            });
             patchVideoElementForMobile();
             started = true;
             if (mounted) {
               setScanError("");
               setScanning(true);
+              setScanHint("Camera ready. Point to an OpenPay QR code.");
             }
             break;
           } catch (error) {
@@ -251,6 +311,7 @@ const QrScannerPage = () => {
       const decoded = await scannerRef.current.scanFile(file, true);
       await handleDecoded(decoded);
     } catch (error) {
+      setScanHint("Could not detect a clear OpenPay QR from this image.");
       toast.error(error instanceof Error ? error.message : "Unable to read QR from image");
     }
   };
@@ -361,7 +422,8 @@ const QrScannerPage = () => {
 
           <p className="mt-6 text-center text-2xl font-semibold">Position the QR code within the frame to pay</p>
           {scanError && <p className="mt-3 text-center text-sm text-red-300">{scanError}</p>}
-          {!scanError && !scanning && <p className="mt-3 text-center text-sm text-white/80">Opening camera...</p>}
+          {!scanError && <p className="mt-3 text-center text-sm text-white/80">{scanHint}</p>}
+          {!scanError && !scanning && <p className="mt-1 text-center text-xs text-white/70">Opening camera...</p>}
 
           <div className="mt-auto">
             <input

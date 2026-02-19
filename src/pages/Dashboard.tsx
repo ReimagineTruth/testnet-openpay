@@ -610,8 +610,8 @@ const Dashboard = () => {
       toast.error("Enter a valid loan amount");
       return;
     }
-    if (!Number.isFinite(term) || term < 1) {
-      toast.error("Enter valid term months");
+    if (!Number.isFinite(term) || term < 1 || term > 60) {
+      toast.error("Term must be between 1 and 60 months");
       return;
     }
     if (!loanAgreementAccepted) {
@@ -861,29 +861,55 @@ const Dashboard = () => {
           </div>
 
           <div className="mt-3 rounded-2xl border border-border/70 p-3">
-            <p className="mb-2 text-sm font-semibold">Request a new OpenPay loan</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <input value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Loan amount (${currency.code})`} className="h-10 rounded-xl border border-border px-3" />
-              <input value={loanTermMonths} onChange={(e) => setLoanTermMonths(e.target.value)} type="number" min="1" max="60" placeholder="Term months" className="h-10 rounded-xl border border-border px-3" />
+            <div className="mb-3">
+              <p className="text-sm font-semibold text-foreground">Loan onboarding form</p>
+              <p className="text-xs text-muted-foreground">Provide accurate details. This application is reviewed by OpenPay admin before approval.</p>
             </div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <input value={loanApplicantName} onChange={(e) => setLoanApplicantName(e.target.value)} placeholder="Full name" className="h-10 rounded-xl border border-border px-3" />
-              <input value={loanContactNumber} onChange={(e) => setLoanContactNumber(e.target.value)} placeholder="Contact number" className="h-10 rounded-xl border border-border px-3" />
-              <input value={loanAddressLine} onChange={(e) => setLoanAddressLine(e.target.value)} placeholder="Address" className="h-10 rounded-xl border border-border px-3 sm:col-span-2" />
-              <input value={loanCity} onChange={(e) => setLoanCity(e.target.value)} placeholder="City" className="h-10 rounded-xl border border-border px-3" />
-              <input value={loanCountry} onChange={(e) => setLoanCountry(e.target.value)} placeholder="Country" className="h-10 rounded-xl border border-border px-3" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span>Loan amount ({currency.code})</span>
+                <input value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} type="number" min="0" step="0.01" placeholder="e.g. 500" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span>Term months (1 - 60)</span>
+                <input value={loanTermMonths} onChange={(e) => setLoanTermMonths(e.target.value)} type="number" min="1" max="60" placeholder="e.g. 6" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+              </label>
             </div>
-            <div className="mt-2 rounded-xl border border-border/70 bg-secondary/30 p-2 text-xs text-muted-foreground">
-              OpenPay account: {userAccount?.account_number || "-"} {userAccount?.account_username ? `(@${userAccount.account_username})` : ""}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span>Full legal name</span>
+                <input value={loanApplicantName} onChange={(e) => setLoanApplicantName(e.target.value)} placeholder="Enter full name" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span>Contact number</span>
+                <input value={loanContactNumber} onChange={(e) => setLoanContactNumber(e.target.value)} placeholder="Phone or active contact number" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground sm:col-span-2">
+                <span>Address line</span>
+                <input value={loanAddressLine} onChange={(e) => setLoanAddressLine(e.target.value)} placeholder="Street / building / district" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span>City</span>
+                <input value={loanCity} onChange={(e) => setLoanCity(e.target.value)} placeholder="Enter city" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+              </label>
+              <label className="space-y-1 text-xs text-muted-foreground">
+                <span>Country</span>
+                <input value={loanCountry} onChange={(e) => setLoanCountry(e.target.value)} placeholder="Enter country" className="h-10 w-full rounded-xl border border-border px-3 text-sm text-foreground" />
+              </label>
             </div>
-            <label className="mt-2 flex items-start gap-2 text-xs text-foreground">
-              <input type="checkbox" checked={loanAgreementAccepted} onChange={(e) => setLoanAgreementAccepted(e.target.checked)} />
+            <div className="mt-3 rounded-xl border border-border/70 bg-secondary/30 p-3 text-xs text-muted-foreground">
+              <p className="font-semibold text-foreground">Bound OpenPay account</p>
+              <p className="mt-1">Account number: {userAccount?.account_number || "-"}</p>
+              <p>Username: {userAccount?.account_username ? `@${userAccount.account_username}` : "-"}</p>
+            </div>
+            <label className="mt-3 flex items-start gap-2 text-xs text-foreground">
+              <input type="checkbox" className="mt-0.5" checked={loanAgreementAccepted} onChange={(e) => setLoanAgreementAccepted(e.target.checked)} />
               <span>I agree to OpenPay loan terms and confirm my application details are real and accurate.</span>
             </label>
             <button
               disabled={requestingLoan || loanApplication?.status === "pending"}
               onClick={handleRequestLoan}
-              className="mt-2 h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white disabled:opacity-60"
+              className="mt-3 h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white disabled:opacity-60"
             >
               {requestingLoan ? "Submitting..." : "Submit Loan Application"}
             </button>
