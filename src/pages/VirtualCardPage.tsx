@@ -23,7 +23,7 @@ interface VirtualCardRecord {
   hide_details: boolean;
   is_locked: boolean;
   locked_at: string | null;
-  card_settings: { allow_checkout?: boolean } | null;
+  card_settings: { allow_checkout?: boolean; signature?: string } | null;
 }
 
 interface VirtualCardTx {
@@ -60,6 +60,8 @@ const VirtualCardPage = () => {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [cardSignature, setCardSignature] = useState("");
   const [signatureLoaded, setSignatureLoaded] = useState(false);
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [lastSavedSignature, setLastSavedSignature] = useState("");
   const [virtualCardActivity, setVirtualCardActivity] = useState<VirtualCardTx[]>([]);
   const [activityLoading, setActivityLoading] = useState(true);
   const [unreadVirtualCardNotifications, setUnreadVirtualCardNotifications] = useState(0);
@@ -155,6 +157,12 @@ const VirtualCardPage = () => {
       if (error) throw error;
       const cardData = data as unknown as VirtualCardRecord;
       setCard(cardData);
+      const dbSignature = String(cardData?.card_settings?.signature || "").slice(0, 32);
+      const localSignature = typeof window === "undefined" ? "" : (localStorage.getItem(`openpay_virtual_card_signature_${user.id}`) || "");
+      const mergedSignature = (dbSignature || localSignature).slice(0, 32);
+      setCardSignature(mergedSignature);
+      setLastSavedSignature(dbSignature);
+      setSignatureLoaded(true);
       const accepted = localStorage.getItem(`openpay_virtual_card_safety_v1_${user.id}`) === "1";
       if (!accepted) {
         setShowSafetyAgreement(true);
@@ -172,13 +180,6 @@ const VirtualCardPage = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (!signatureStorageKey || typeof window === "undefined") return;
-    const saved = localStorage.getItem(signatureStorageKey) || "";
-    setCardSignature(saved);
-    setSignatureLoaded(true);
-  }, [signatureStorageKey]);
-
-  useEffect(() => {
     if (!signatureStorageKey || !signatureLoaded || typeof window === "undefined") return;
     localStorage.setItem(signatureStorageKey, cardSignature);
   }, [signatureStorageKey, signatureLoaded, cardSignature]);
@@ -191,6 +192,30 @@ const VirtualCardPage = () => {
 
   const handleFlip = () => {
     setFlipTurns((value) => value + 1);
+  };
+
+  const persistCardSignature = async () => {
+    if (!signatureLoaded || !userId) return;
+    const nextSignature = cardSignature.trim().slice(0, 32);
+    if (nextSignature === lastSavedSignature) return;
+
+    setSignatureSaving(true);
+    try {
+      const { data, error } = await supabase.rpc("save_my_virtual_card_signature", {
+        p_signature: nextSignature,
+      });
+      if (error) throw error;
+      const updated = data as unknown as VirtualCardRecord;
+      setCard(updated);
+      const savedSignature = String(updated?.card_settings?.signature || "").slice(0, 32);
+      setCardSignature(savedSignature);
+      setLastSavedSignature(savedSignature);
+      toast.success("Card signature saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save card signature");
+    } finally {
+      setSignatureSaving(false);
+    }
   };
 
   const updateControls = async (params: {
@@ -440,6 +465,7 @@ const VirtualCardPage = () => {
               <Input
                 value={cardSignature}
                 onChange={(e) => setCardSignature(e.target.value.slice(0, 32))}
+                onBlur={persistCardSignature}
                 placeholder="Type your signature"
                 className="h-12 rounded-2xl bg-white"
               />
@@ -450,6 +476,16 @@ const VirtualCardPage = () => {
                 Preview: {signatureDisplay}
               </p>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={persistCardSignature}
+              disabled={signatureSaving}
+              className="h-11 w-full rounded-2xl"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${signatureSaving ? "animate-spin" : ""}`} />
+              {signatureSaving ? "Saving signature..." : "Save Signature"}
+            </Button>
             <Button
               type="button"
               variant="outline"

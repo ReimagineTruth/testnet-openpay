@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const emojiFlagStyle = {
   fontFamily: "\"Segoe UI Emoji\", \"Apple Color Emoji\", \"Noto Color Emoji\", sans-serif",
 };
+const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
 
 const CurrencySelector = () => {
   const { currencies, currency, setCurrency } = useCurrency();
@@ -36,7 +37,15 @@ const CurrencySelector = () => {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-sm font-medium border border-border hover:bg-accent transition-colors">
-          <span className="text-lg leading-none" style={emojiFlagStyle}>{currency.flag}</span>
+          {currency.code === "PI" ? (
+            <img
+              src={PURE_PI_ICON_URL}
+              alt="Pure Pi"
+              className="h-[18px] w-[18px] rounded-full object-cover"
+            />
+          ) : (
+            <span className="text-lg leading-none" style={emojiFlagStyle}>{currency.flag}</span>
+          )}
           <span>{getPiCodeLabel(currency.code)}</span>
           <ChevronDown className="w-3.5 h-3.5 opacity-60" />
         </button>
@@ -73,7 +82,15 @@ const CurrencySelector = () => {
                     : "hover:bg-muted text-foreground"
                 }`}
               >
-                <span className="text-2xl leading-none" style={emojiFlagStyle}>{c.flag}</span>
+                {c.code === "PI" ? (
+                  <img
+                    src={PURE_PI_ICON_URL}
+                    alt="Pure Pi"
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="text-2xl leading-none" style={emojiFlagStyle}>{c.flag}</span>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{getPiCodeLabel(c.code)}</p>
                   <p className="text-xs text-muted-foreground truncate">{getPiNameLabel(c.code, c.name)}</p>

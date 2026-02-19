@@ -505,7 +505,7 @@ const MerchantOnboardingPage = () => {
                 >
                   {currencyChoices.map((item) => (
                     <option key={item.code} value={item.code}>
-                      {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                      {item.code === "PI" ? "PI" : item.flag} {getPiCodeLabel(item.code)} - {item.name}
                     </option>
                   ))}
                 </select>
@@ -540,7 +540,7 @@ const MerchantOnboardingPage = () => {
                 >
                   {currencyChoices.map((item) => (
                     <option key={item.code} value={item.code}>
-                      {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                      {item.code === "PI" ? "PI" : item.flag} {getPiCodeLabel(item.code)} - {item.name}
                     </option>
                   ))}
                 </select>
