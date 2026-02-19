@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, Boxes, Copy, CreditCard, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, Plus, Users, Wallet, X } from "lucide-react";
+import { ArrowLeft, BarChart3, Bell, Boxes, Copy, CreditCard, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, MessageCircle, Plus, Users, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,7 @@ const MerchantOnboardingPage = () => {
   const [activeView, setActiveView] = useState<PortalView>("home");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("sandbox");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const [merchantName, setMerchantName] = useState("OpenPay Merchant");
   const [merchantUsername, setMerchantUsername] = useState("");
@@ -135,13 +136,14 @@ const MerchantOnboardingPage = () => {
   }, [modeProducts, selectedQty]);
 
   const loadPortal = async (uid: string) => {
-    const [{ data: profile }, { data: keyRows }, { data: productRows }, { data: paymentRows }, { data: sessionRows }, { data: walletRow }] = await Promise.all([
+    const [{ data: profile }, { data: keyRows }, { data: productRows }, { data: paymentRows }, { data: sessionRows }, { data: walletRow }, { count: unreadCount }] = await Promise.all([
       db.from("merchant_profiles").select("user_id, merchant_name, merchant_username, merchant_logo_url, default_currency").eq("user_id", uid).maybeSingle(),
       db.from("merchant_api_keys").select("id, key_mode, key_name, publishable_key, secret_key_last4, is_active, created_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
       db.from("merchant_products").select("id, product_code, product_name, product_description, unit_amount, currency, is_active").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
       db.from("merchant_payments").select("id, session_id, buyer_user_id, transaction_id, amount, currency, api_key_id, key_mode, payment_link_id, payment_link_token, status, created_at").eq("merchant_user_id", uid),
       db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, customer_name, customer_email, created_at").eq("merchant_user_id", uid),
       db.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
+      db.from("app_notifications").select("id", { count: "exact", head: true }).eq("user_id", uid).is("read_at", null),
     ]);
 
     if (profile) {
@@ -159,6 +161,7 @@ const MerchantOnboardingPage = () => {
     setPayments((paymentRows || []) as MerchantPayment[]);
     setSessions((sessionRows || []) as MerchantSession[]);
     setWalletBalance(Number(walletRow?.balance || 0));
+    setUnreadNotifications(Number(unreadCount || 0));
   };
 
   useEffect(() => {
@@ -360,7 +363,7 @@ const MerchantOnboardingPage = () => {
     toast.success(`${modeLabel} checkout link ready`);
   };
 
-  if (loading) return <SplashScreen message="Loading Merchant Portal..." />;
+  if (loading) return <SplashScreen message="Loading merchant portal..." />;
 
   const renderContent = () => {
     if (activeView === "home") {
@@ -599,7 +602,17 @@ const MerchantOnboardingPage = () => {
               </button>
               <div><h1 className="text-2xl font-bold text-slate-900">{navItems.find((x) => x.key === activeView)?.label}</h1><p className="text-sm text-slate-500">{merchantName} @{merchantUsername || "merchant"}</p></div>
             </div>
-            <div className="flex items-center gap-2"><button onClick={() => setMode("sandbox")} className={`h-9 rounded-lg px-3 text-sm ${mode === "sandbox" ? "bg-blue-600 text-white" : "bg-white text-slate-700 border border-slate-300"}`}>Sandbox</button><button onClick={() => setMode("live")} className={`h-9 rounded-lg px-3 text-sm ${mode === "live" ? "bg-blue-600 text-white" : "bg-white text-slate-700 border border-slate-300"}`}>Live</button></div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate("/contacts")} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white" aria-label="Open messages">
+                <MessageCircle className="h-4 w-4 text-slate-700" />
+              </button>
+              <button onClick={() => navigate("/notifications")} className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white" aria-label="Open notifications">
+                <Bell className="h-4 w-4 text-slate-700" />
+                {unreadNotifications > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />}
+              </button>
+              <button onClick={() => setMode("sandbox")} className={`h-9 rounded-lg px-3 text-sm ${mode === "sandbox" ? "bg-blue-600 text-white" : "bg-white text-slate-700 border border-slate-300"}`}>Sandbox</button>
+              <button onClick={() => setMode("live")} className={`h-9 rounded-lg px-3 text-sm ${mode === "live" ? "bg-blue-600 text-white" : "bg-white text-slate-700 border border-slate-300"}`}>Live</button>
+            </div>
           </div>
 
           <div className="mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 md:hidden">

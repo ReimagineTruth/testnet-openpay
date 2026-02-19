@@ -48,9 +48,11 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String((body as { action?: string }).action || "credit");
     const amount = (body as { amount?: number }).amount;
+    const amountUsd = (body as { amountUsd?: number }).amountUsd;
     const paymentId = (body as { paymentId?: string }).paymentId;
     const txid = (body as { txid?: string }).txid;
     const parsedAmount = Number(amount);
+    const parsedAmountUsd = Number.isFinite(Number(amountUsd)) && Number(amountUsd) > 0 ? Number(amountUsd) : parsedAmount;
     if (!paymentId || typeof paymentId !== "string") throw new Error("Missing paymentId");
 
     const piApiKey = Deno.env.get("PI_API_KEY");
@@ -177,7 +179,7 @@ serve(async (req) => {
         sender_id: user.id,
         receiver_id: user.id,
         amount: parsedAmount,
-        note: "Wallet top up",
+        note: `Wallet top up (PI -> USD) | ${parsedAmount.toFixed(2)} PI = ${parsedAmountUsd.toFixed(2)} USD`,
         status: "completed",
       });
 

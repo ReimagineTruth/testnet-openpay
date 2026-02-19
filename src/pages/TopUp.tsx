@@ -20,9 +20,14 @@ const TopUp = () => {
   const { currencies } = useCurrency();
   const usdCurrency = currencies.find((c) => c.code === "USD") ?? currencies[0];
   const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
+  const parsedAmount = Number(amount);
+  const safeAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
 
   const initPi = () => {
-    if (!window.Pi) { toast.error("Pi SDK not loaded. Open this app in Pi Browser."); return false; }
+    if (!window.Pi) {
+      toast.error("Pi SDK not loaded. Open this app in Pi Browser.");
+      return false;
+    }
     window.Pi.init({ version: "2.0", sandbox });
     return true;
   };
@@ -45,8 +50,10 @@ const TopUp = () => {
   };
 
   const handleTopUp = async () => {
-    const parsedAmount = Number(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
     if (!initPi() || !window.Pi) return;
 
     setLoading(true);
@@ -55,13 +62,22 @@ const TopUp = () => {
         const incompleteTxid = payment.transaction?.txid;
         if (!incompleteTxid) return;
         try {
-          await invokeTopUpAction({ action: "complete", paymentId: payment.identifier, txid: incompleteTxid }, "Failed to recover previous payment");
-        } catch { /* no-op */ }
+          await invokeTopUpAction(
+            { action: "complete", paymentId: payment.identifier, txid: incompleteTxid },
+            "Failed to recover previous payment",
+          );
+        } catch {
+          // no-op
+        }
       });
 
       const verified = await verifyPiAccessToken(auth.accessToken);
       await supabase.auth.updateUser({
-        data: { pi_uid: verified.uid, pi_username: verified.username || auth.user.username, pi_connected_at: new Date().toISOString() },
+        data: {
+          pi_uid: verified.uid,
+          pi_username: verified.username || auth.user.username,
+          pi_connected_at: new Date().toISOString(),
+        },
       });
 
       let completedPaymentId = "";
@@ -70,7 +86,16 @@ const TopUp = () => {
       await new Promise<void>((resolve, reject) => {
         let completed = false;
         window.Pi!.createPayment(
-          { amount: parsedAmount, memo: "OpenPay wallet top up", metadata: { feature: "top_up", amount: parsedAmount, requestedAt: new Date().toISOString() } },
+          {
+            amount: parsedAmount,
+            memo: "OpenPay wallet top up (PI to USD)",
+            metadata: {
+              feature: "top_up",
+              amount_pi: parsedAmount,
+              amount_usd: parsedAmount,
+              requestedAt: new Date().toISOString(),
+            },
+          },
           {
             onReadyForServerApproval: async (paymentId: string) => {
               await invokeTopUpAction({ action: "approve", paymentId }, "Pi server approval failed");
@@ -81,7 +106,10 @@ const TopUp = () => {
               completedPaymentId = paymentId;
               completedTxid = txid;
               await invokeTopUpAction({ action: "complete", paymentId, txid }, "Pi server completion failed");
-              await invokeTopUpAction({ action: "credit", amount: parsedAmount, paymentId, txid }, "Top up failed");
+              await invokeTopUpAction(
+                { action: "credit", amount: parsedAmount, amountUsd: parsedAmount, paymentId, txid },
+                "Top up failed",
+              );
               resolve();
             },
             onCancel: () => reject(new Error("Payment cancelled")),
@@ -90,12 +118,11 @@ const TopUp = () => {
         );
       });
 
-      // Show receipt
       setReceiptData({
         transactionId: completedPaymentId || completedTxid || crypto.randomUUID(),
         type: "topup",
         amount: parsedAmount,
-        note: "Pi Network top up",
+        note: "Pi Network top up (PI -> USD)",
         date: new Date(),
       });
       setReceiptOpen(true);
@@ -123,22 +150,40 @@ const TopUp = () => {
 
       <div className="paypal-surface mt-10 rounded-3xl p-6">
         <div className="mb-8 text-center">
-          <p className="text-5xl font-bold text-foreground">{usdCurrency.symbol}{amount || "0.00"}</p>
-          <p className="mt-2 text-muted-foreground">Enter amount to add · {usdCurrency.flag} {usdCurrency.code}</p>
+          <p className="text-5xl font-bold text-foreground">{usdCurrency.symbol}{safeAmount.toFixed(2)}</p>
+          <p className="mt-2 text-muted-foreground">Enter amount to add - {usdCurrency.flag} {usdCurrency.code}</p>
         </div>
-        <Input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)}
-          className="mb-6 h-14 rounded-2xl border-white/70 bg-white text-center text-2xl" min="0.01" step="0.01" />
+        <Input
+          type="number"
+          placeholder="0.00"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="mb-6 h-14 rounded-2xl border-white/70 bg-white text-center text-2xl"
+          min="0.01"
+          step="0.01"
+        />
+        <div className="mb-4 grid grid-cols-2 gap-3 text-center text-xs text-muted-foreground">
+          <p className="rounded-xl border border-border px-3 py-2">Pay: {safeAmount.toFixed(2)} PI</p>
+          <p className="rounded-xl border border-border px-3 py-2">Add: {usdCurrency.symbol}{safeAmount.toFixed(2)} USD</p>
+        </div>
         <p className="mb-4 text-center text-xs text-muted-foreground">OpenPay uses a stable in-app value: 1 Pi = 1 USD.</p>
-        <Button onClick={handleTopUp} disabled={loading || !amount || Number(amount) <= 0}
-          className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]">
-          {loading ? "Processing Pi payment..." : `Pay with Pi and add ${usdCurrency.symbol}${amount || "0.00"}`}
+        <Button
+          onClick={handleTopUp}
+          disabled={loading || safeAmount <= 0}
+          className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
+        >
+          {loading ? "Processing Pi payment..." : `Pay ${safeAmount.toFixed(2)} PI and add ${usdCurrency.symbol}${safeAmount.toFixed(2)} USD`}
         </Button>
       </div>
 
-      <TransactionReceipt open={receiptOpen} onOpenChange={(open) => {
-        setReceiptOpen(open);
-        if (!open) navigate("/dashboard");
-      }} receipt={receiptData} />
+      <TransactionReceipt
+        open={receiptOpen}
+        onOpenChange={(open) => {
+          setReceiptOpen(open);
+          if (!open) navigate("/dashboard");
+        }}
+        receipt={receiptData}
+      />
 
       <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
         <DialogContent className="rounded-3xl sm:max-w-lg">

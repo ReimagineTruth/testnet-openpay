@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ChevronDown, CreditCard, LockKeyhole, QrCode, WalletCards, X } from "lucide-react";
+import { ChevronDown, CreditCard, HelpCircle, LockKeyhole, QrCode, WalletCards, X } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -97,10 +97,11 @@ const MerchantCheckoutPage = () => {
   const [cardExpiryYear] = useState("");
   const [cardCvc, setCardCvc] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"card" | "openpay_wallet">("card");
-  const [country, setCountry] = useState("Philippines");
+  const [country, setCountry] = useState("United States");
   const [payCurrencyCode, setPayCurrencyCode] = useState("PI");
   const [promoOptIn, setPromoOptIn] = useState(false);
   const [showProductDetails, setShowProductDetails] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   const legacyMerchantId = searchParams.get("merchantId") || "";
   const legacyProductName = searchParams.get("productName") || "Merchant product";
@@ -205,15 +206,15 @@ const MerchantCheckoutPage = () => {
     const parsedYear = Number.isFinite(parsedYearRaw) && parsedYearRaw < 100 ? 2000 + parsedYearRaw : parsedYearRaw;
 
     if (!cardNumber.trim() || !monthRaw || !yearRaw || !cardCvc.trim()) {
-      toast.error("Card number, expiry (MM/YY), and CVC are required");
+      toast.error("Virtual card number, expiry (MM/YY), and CVC are required");
       return;
     }
     if (!Number.isFinite(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
-      toast.error("Invalid card expiry month");
+      toast.error("Invalid virtual card expiry month");
       return;
     }
     if (!Number.isFinite(parsedYear) || parsedYear < 2026) {
-      toast.error("Invalid card expiry year");
+      toast.error("Invalid virtual card expiry year");
       return;
     }
 
@@ -380,6 +381,14 @@ const MerchantCheckoutPage = () => {
         </button>
         <div className="mx-3 h-7 w-px bg-border" />
         <p className="text-xl font-medium text-foreground">Pay</p>
+        <button
+          type="button"
+          onClick={() => setShowInstructions(true)}
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary"
+        >
+          <HelpCircle className="h-4 w-4" />
+          Instructions
+        </button>
       </div>
 
       <div className="grid min-h-[calc(100vh-56px)] grid-cols-1 lg:grid-cols-[1fr_900px]">
@@ -422,7 +431,7 @@ const MerchantCheckoutPage = () => {
                   className={`flex h-16 items-center gap-2 rounded-md border px-3 text-left ${paymentMethod === "card" ? "border-paypal-blue text-paypal-blue" : "border-border text-muted-foreground"}`}
                 >
                   <CreditCard className="h-5 w-5" />
-                  <span className="text-lg font-medium">Card</span>
+                  <span className="text-lg font-medium">Virtual Card</span>
                 </button>
                 <button
                   type="button"
@@ -437,7 +446,7 @@ const MerchantCheckoutPage = () => {
               {paymentMethod === "card" ? (
                 <>
                   <div className="mt-4">
-                    <p className="mb-1 text-xl text-foreground">Card number</p>
+                    <p className="mb-1 text-xl text-foreground">Virtual card number</p>
                     <Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="1234 1234 1234 1234" className="h-12 rounded-md text-lg" />
                   </div>
 
@@ -456,6 +465,9 @@ const MerchantCheckoutPage = () => {
                       <Input value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} placeholder="CVC" className="h-12 rounded-md text-lg" />
                     </div>
                   </div>
+                  <p className="mt-2 text-center text-xs font-medium text-paypal-blue">
+                    Use only OpenPay Virtual Card for this payment method.
+                  </p>
                 </>
               ) : (
                 <div className="mt-4 rounded-xl border border-border bg-secondary/20 p-4">
@@ -502,7 +514,7 @@ const MerchantCheckoutPage = () => {
                       Copy link (if scanner fails)
                     </Button>
                   </div>
-                  <p className="mt-2 text-center text-xs font-medium text-amber-700">
+                  <p className="mt-2 text-center text-xs font-medium text-paypal-blue">
                     Use OpenPay wallet only. Other wallets are not supported for this payment link.
                   </p>
                 </div>
@@ -536,7 +548,7 @@ const MerchantCheckoutPage = () => {
                   >
                     {currencies.map((currencyOption) => (
                       <option key={currencyOption.code} value={currencyOption.code}>
-                        {currencyOption.code} - {currencyOption.name}
+                        {`${currencyOption.flag ? `${currencyOption.flag} ` : ""}PI ${currencyOption.code} - ${currencyOption.name}`}
                       </option>
                     ))}
                   </select>
@@ -642,6 +654,24 @@ const MerchantCheckoutPage = () => {
           </div>
           <Button className="mt-3 h-10 rounded-xl" onClick={() => setShowProductDetails(false)}>
             Close
+          </Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="rounded-2xl">
+          <DialogTitle className="text-xl font-semibold text-foreground">Payment Instructions</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Follow these steps to complete checkout securely.
+          </DialogDescription>
+          <div className="mt-3 space-y-3 rounded-xl border border-border p-3 text-sm text-foreground">
+            <p>1. Choose your payment method: OpenPay Virtual Card or OpenPay Wallet.</p>
+            <p>2. For Virtual Card: enter valid card number, expiry, and CVC from your OpenPay virtual card.</p>
+            <p>3. For OpenPay Wallet: scan the QR or open the /send link inside OpenPay.</p>
+            <p>4. Confirm country and pay currency before submitting payment.</p>
+            <p>5. Complete payment and keep your receipt in transaction history.</p>
+          </div>
+          <Button className="mt-3 h-10 rounded-xl" onClick={() => setShowInstructions(false)}>
+            Got it
           </Button>
         </DialogContent>
       </Dialog>

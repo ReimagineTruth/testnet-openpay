@@ -39,9 +39,11 @@ const PaymentLinksCreatePage = () => {
 
   const [loading, setLoading] = useState(true);
   const [merchantUserId, setMerchantUserId] = useState("");
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [paymentLinks, setPaymentLinks] = useState<PaymentLinkRow[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showMenuSelection, setShowMenuSelection] = useState(false);
 
   const [mode, setMode] = useState<Mode>("sandbox");
   const [type, setType] = useState<LinkType>("products");
@@ -104,8 +106,15 @@ const PaymentLinksCreatePage = () => {
           .order("created_at", { ascending: false }),
       ]);
 
+      const { count: unreadCount } = await supabase
+        .from("app_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("read_at", null);
+
       if (profile?.default_currency) setCurrency(String(profile.default_currency).toUpperCase());
       setProducts((list || []) as Product[]);
+      setUnreadNotifications(Number(unreadCount || 0));
       await loadPaymentLinks(user.id);
       setLoading(false);
     };
@@ -491,13 +500,61 @@ const PaymentLinksCreatePage = () => {
     <div className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-5xl px-4 pb-10 pt-4">
         <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate("/menu")}
-            className="paypal-surface rounded-full p-2 text-foreground"
-            aria-label="Open menu"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowMenuSelection((prev) => !prev)}
+              className="paypal-surface rounded-full p-2 text-foreground"
+              aria-label="Open merchant menu selection"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+
+            {showMenuSelection && (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-20 cursor-default"
+                  onClick={() => setShowMenuSelection(false)}
+                  aria-label="Close menu selection"
+                />
+                <div className="absolute left-0 top-12 z-30 w-56 rounded-xl border border-border bg-white p-2 shadow-xl">
+                  <button
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
+                    onClick={() => {
+                      setShowMenuSelection(false);
+                      navigate("/merchant-onboarding");
+                    }}
+                  >
+                    Merchant portal
+                  </button>
+                  <button
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
+                    onClick={() => {
+                      setShowMenuSelection(false);
+                      navigate("/dashboard");
+                    }}
+                  >
+                    Dashboard
+                  </button>
+                  <button
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
+                    onClick={() => {
+                      setShowMenuSelection(false);
+                      navigate("/menu");
+                    }}
+                  >
+                    Main menu
+                  </button>
+                  <button
+                    className="w-full rounded-lg bg-secondary px-3 py-2 text-left text-sm font-medium text-foreground"
+                    onClick={() => setShowMenuSelection(false)}
+                  >
+                    Payment links
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <BrandLogo className="h-7 w-7" />
@@ -505,11 +562,22 @@ const PaymentLinksCreatePage = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="paypal-surface rounded-full p-2 text-foreground" aria-label="Messages">
+            <button
+              className="paypal-surface rounded-full p-2 text-foreground"
+              aria-label="Messages"
+              onClick={() => navigate("/contacts")}
+            >
               <MessageCircle className="h-5 w-5" />
             </button>
-            <button className="paypal-surface rounded-full p-2 text-foreground" aria-label="Notifications">
+            <button
+              className="paypal-surface relative rounded-full p-2 text-foreground"
+              aria-label="Notifications"
+              onClick={() => navigate("/notifications")}
+            >
               <Bell className="h-5 w-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />
+              )}
             </button>
           </div>
         </div>

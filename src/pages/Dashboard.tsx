@@ -379,7 +379,7 @@ const Dashboard = () => {
         setTransactions(enriched);
       }
 
-      const [requestsRes, invoicesRes] = await Promise.all([
+      const [requestsRes, invoicesRes, notificationsRes] = await Promise.all([
         supabase
           .from("payment_requests")
           .select("id")
@@ -390,9 +390,15 @@ const Dashboard = () => {
           .select("id")
           .eq("recipient_id", user.id)
           .eq("status", "pending"),
+        supabase
+          .from("app_notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .is("read_at", null),
       ]);
       const pendingCount = (requestsRes.data?.length || 0) + (invoicesRes.data?.length || 0);
-      setPendingAlerts(pendingCount);
+      const unreadCount = Number(notificationsRes.count || 0);
+      setPendingAlerts(Math.max(pendingCount, unreadCount));
 
       const agreementKey = `openpay_usage_agreement_v1_${user.id}`;
       const onboardingKey = `openpay_onboarding_done_v1_${user.id}`;
