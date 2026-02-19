@@ -183,15 +183,37 @@ const MerchantCheckoutPage = () => {
       navigate("/auth");
       return;
     }
-    const [parsedMonth, parsedYear] = cardExpiryMonth
-      .split("/")
-      .map((v) => v.trim())
-      .filter(Boolean);
-    const expiryMonthToUse = parsedMonth || cardExpiryMonth.trim();
-    const expiryYearToUse = cardExpiryYear.trim() || parsedYear || "";
+    const parseExpiryInput = () => {
+      const compact = cardExpiryMonth.replace(/\s+/g, "");
+      const slashParts = compact.split("/").filter(Boolean);
+      if (slashParts.length >= 2) {
+        return { monthRaw: slashParts[0], yearRaw: slashParts[1] };
+      }
+      const digits = compact.replace(/\D/g, "");
+      if (digits.length === 4) {
+        return { monthRaw: digits.slice(0, 2), yearRaw: digits.slice(2) };
+      }
+      if (digits.length === 6) {
+        return { monthRaw: digits.slice(0, 2), yearRaw: digits.slice(2) };
+      }
+      return { monthRaw: cardExpiryMonth.trim(), yearRaw: cardExpiryYear.trim() };
+    };
 
-    if (!cardNumber.trim() || !expiryMonthToUse || !expiryYearToUse || !cardCvc.trim()) {
+    const { monthRaw, yearRaw } = parseExpiryInput();
+    const parsedMonth = Number(monthRaw);
+    const parsedYearRaw = Number(yearRaw || cardExpiryYear.trim());
+    const parsedYear = Number.isFinite(parsedYearRaw) && parsedYearRaw < 100 ? 2000 + parsedYearRaw : parsedYearRaw;
+
+    if (!cardNumber.trim() || !monthRaw || !yearRaw || !cardCvc.trim()) {
       toast.error("Card number, expiry (MM/YY), and CVC are required");
+      return;
+    }
+    if (!Number.isFinite(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
+      toast.error("Invalid card expiry month");
+      return;
+    }
+    if (!Number.isFinite(parsedYear) || parsedYear < 2026) {
+      toast.error("Invalid card expiry year");
       return;
     }
 
@@ -210,8 +232,8 @@ const MerchantCheckoutPage = () => {
       const { data: rpcTxId, error: rpcError } = await db.rpc("pay_merchant_checkout_with_virtual_card", {
         p_session_token: resolvedSessionToken,
         p_card_number: cardNumber,
-        p_expiry_month: Number(expiryMonthToUse),
-        p_expiry_year: Number(expiryYearToUse),
+        p_expiry_month: parsedMonth,
+        p_expiry_year: parsedYear,
         p_cvc: cardCvc,
         p_note: note,
       });
