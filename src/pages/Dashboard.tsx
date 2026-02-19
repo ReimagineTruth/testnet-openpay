@@ -65,6 +65,37 @@ interface LoanDashboard {
   created_at: string;
 }
 
+interface LoanApplication {
+  id: string;
+  requested_amount: number;
+  requested_term_months: number;
+  credit_score_snapshot: number;
+  full_name: string;
+  contact_number: string;
+  address_line: string;
+  city: string;
+  country: string;
+  openpay_account_number: string;
+  openpay_account_username: string;
+  agreement_accepted: boolean;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  admin_note: string;
+  created_at: string;
+  reviewed_at: string | null;
+}
+
+interface LoanPaymentHistoryRow {
+  id: string;
+  loan_id: string;
+  amount: number;
+  principal_component: number;
+  fee_component: number;
+  payment_method: "wallet" | "pi";
+  payment_reference: string | null;
+  note: string;
+  created_at: string;
+}
+
 const getGreeting = () => {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -117,6 +148,8 @@ const Dashboard = () => {
   const [savingsTransfers, setSavingsTransfers] = useState<SavingsTransferActivity[]>([]);
   const [creditScore, setCreditScore] = useState(620);
   const [loan, setLoan] = useState<LoanDashboard | null>(null);
+  const [loanApplication, setLoanApplication] = useState<LoanApplication | null>(null);
+  const [loanPaymentHistory, setLoanPaymentHistory] = useState<LoanPaymentHistoryRow[]>([]);
   const [movingToSavings, setMovingToSavings] = useState(false);
   const [movingToWallet, setMovingToWallet] = useState(false);
   const [requestingLoan, setRequestingLoan] = useState(false);
@@ -126,6 +159,14 @@ const Dashboard = () => {
   const [loanAmount, setLoanAmount] = useState("");
   const [loanTermMonths, setLoanTermMonths] = useState("6");
   const [loanPaymentAmount, setLoanPaymentAmount] = useState("");
+  const [loanPaymentMethod, setLoanPaymentMethod] = useState<"wallet" | "pi">("wallet");
+  const [loanPaymentReference, setLoanPaymentReference] = useState("");
+  const [loanAgreementAccepted, setLoanAgreementAccepted] = useState(false);
+  const [loanApplicantName, setLoanApplicantName] = useState("");
+  const [loanContactNumber, setLoanContactNumber] = useState("");
+  const [loanAddressLine, setLoanAddressLine] = useState("");
+  const [loanCity, setLoanCity] = useState("");
+  const [loanCountry, setLoanCountry] = useState("");
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const currencyTag = currency.code === "PI" ? "PI" : `${currency.code} (Pi rate)`;
@@ -153,10 +194,12 @@ const Dashboard = () => {
   ];
 
   const loadSavingsAndLoan = async () => {
-    const [{ data: savingsData }, { data: loanData }, { data: creditScoreData }] = await Promise.all([
+    const [{ data: savingsData }, { data: loanData }, { data: creditScoreData }, { data: applicationData }, { data: paymentHistoryData }] = await Promise.all([
       supabase.rpc("get_my_savings_dashboard"),
       supabase.rpc("get_my_latest_loan"),
       (supabase as any).rpc("get_my_credit_score"),
+      (supabase as any).rpc("get_my_latest_loan_application"),
+      (supabase as any).rpc("get_my_loan_payment_history", { p_loan_id: null, p_limit: 24 }),
     ]);
 
     const savingsRow = Array.isArray(savingsData) ? savingsData[0] : null;
@@ -190,6 +233,45 @@ const Dashboard = () => {
         : null,
     );
 
+    const applicationRow = Array.isArray(applicationData) ? applicationData[0] : applicationData;
+    setLoanApplication(
+      applicationRow
+        ? {
+            id: String(applicationRow.id),
+            requested_amount: Number(applicationRow.requested_amount || 0),
+            requested_term_months: Number(applicationRow.requested_term_months || 0),
+            credit_score_snapshot: Number(applicationRow.credit_score_snapshot || 620),
+            full_name: String(applicationRow.full_name || ""),
+            contact_number: String(applicationRow.contact_number || ""),
+            address_line: String(applicationRow.address_line || ""),
+            city: String(applicationRow.city || ""),
+            country: String(applicationRow.country || ""),
+            openpay_account_number: String(applicationRow.openpay_account_number || ""),
+            openpay_account_username: String(applicationRow.openpay_account_username || ""),
+            agreement_accepted: Boolean(applicationRow.agreement_accepted),
+            status: (String(applicationRow.status || "pending") as LoanApplication["status"]),
+            admin_note: String(applicationRow.admin_note || ""),
+            created_at: String(applicationRow.created_at || ""),
+            reviewed_at: applicationRow.reviewed_at ? String(applicationRow.reviewed_at) : null,
+          }
+        : null,
+    );
+
+    const historyRows = Array.isArray(paymentHistoryData) ? paymentHistoryData : [];
+    setLoanPaymentHistory(
+      historyRows.map((row: any) => ({
+        id: String(row.id),
+        loan_id: String(row.loan_id),
+        amount: Number(row.amount || 0),
+        principal_component: Number(row.principal_component || 0),
+        fee_component: Number(row.fee_component || 0),
+        payment_method: (String(row.payment_method || "wallet") as "wallet" | "pi"),
+        payment_reference: row.payment_reference ? String(row.payment_reference) : null,
+        note: String(row.note || ""),
+        created_at: String(row.created_at || ""),
+      })),
+    );
+
     const parsedCreditScore = Number(
       Array.isArray(creditScoreData)
         ? creditScoreData[0]
@@ -221,6 +303,8 @@ const Dashboard = () => {
         .single();
       setUserName(profile?.full_name || "");
       setUsername(profile?.username || null);
+      if (!loanApplicantName && profile?.full_name) setLoanApplicantName(profile.full_name);
+      if (!loanContactNumber && profile?.username) setLoanContactNumber(profile.username);
       if (profile?.referral_code) {
         setAppCookie(`openpay_ref_code_${user.id}`, profile.referral_code);
       }
@@ -234,6 +318,11 @@ const Dashboard = () => {
 
       const { data: accountData } = await supabase.rpc("upsert_my_user_account");
       setUserAccount(accountData as unknown as UserAccount);
+      const normalizedAccount = accountData as unknown as UserAccount | null;
+      if (normalizedAccount) {
+        if (!loanApplicantName && normalizedAccount.account_name) setLoanApplicantName(normalizedAccount.account_name);
+        if (!loanContactNumber && normalizedAccount.account_username) setLoanContactNumber(normalizedAccount.account_username);
+      }
 
       const { data: savingsTransferRows } = await (supabase as any)
         .from("user_savings_transfers")
@@ -525,11 +614,30 @@ const Dashboard = () => {
       toast.error("Enter valid term months");
       return;
     }
+    if (!loanAgreementAccepted) {
+      toast.error("You must accept the loan agreement");
+      return;
+    }
+    if (!loanApplicantName.trim() || !loanContactNumber.trim() || !loanAddressLine.trim() || !loanCity.trim() || !loanCountry.trim()) {
+      toast.error("Complete all loan application details");
+      return;
+    }
+    if (!userAccount?.account_number || !userAccount?.account_username) {
+      toast.error("OpenPay account details not ready. Refresh and try again.");
+      return;
+    }
     setRequestingLoan(true);
-    const { error } = await supabase.rpc("request_my_openpay_loan", {
-      p_principal_amount: principal,
-      p_term_months: term,
-      p_credit_score: null,
+    const { error } = await (supabase as any).rpc("submit_my_loan_application", {
+      p_requested_amount: principal,
+      p_requested_term_months: term,
+      p_full_name: loanApplicantName.trim(),
+      p_contact_number: loanContactNumber.trim(),
+      p_address_line: loanAddressLine.trim(),
+      p_city: loanCity.trim(),
+      p_country: loanCountry.trim(),
+      p_openpay_account_number: userAccount.account_number,
+      p_openpay_account_username: userAccount.account_username,
+      p_agreement_accepted: true,
     });
     setRequestingLoan(false);
     if (error) {
@@ -537,7 +645,7 @@ const Dashboard = () => {
       return;
     }
     setLoanAmount("");
-    toast.success("Loan approved and credited to wallet");
+    toast.success("Loan application submitted for admin review");
     await loadDashboard();
   };
 
@@ -551,11 +659,17 @@ const Dashboard = () => {
       toast.error("Enter a valid payment amount");
       return;
     }
+    if (loanPaymentMethod === "pi" && !loanPaymentReference.trim()) {
+      toast.error("Enter Pi payment reference");
+      return;
+    }
     setPayingLoan(true);
-    const { error } = await supabase.rpc("pay_my_loan_monthly", {
+    const { error } = await (supabase as any).rpc("pay_my_loan_monthly_with_method", {
       p_loan_id: loan.id,
       p_amount: payment,
-      p_note: "Dashboard monthly loan payment",
+      p_payment_method: loanPaymentMethod,
+      p_payment_reference: loanPaymentMethod === "pi" ? loanPaymentReference.trim() : null,
+      p_note: loanPaymentMethod === "pi" ? "Dashboard monthly loan payment (PI)" : "Dashboard monthly loan payment (wallet)",
     });
     setPayingLoan(false);
     if (error) {
@@ -563,6 +677,7 @@ const Dashboard = () => {
       return;
     }
     setLoanPaymentAmount("");
+    setLoanPaymentReference("");
     toast.success("Loan payment completed");
     await loadDashboard();
   };
@@ -725,24 +840,109 @@ const Dashboard = () => {
             <div className="rounded-2xl border border-border/70 p-3">
               <p className="text-xs text-muted-foreground">Monthly payment</p>
               <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(loan?.monthly_payment_amount ?? 0)}</p>
+              {loan?.next_due_date && <p className="mt-1 text-xs text-muted-foreground">Next due: {format(new Date(loan.next_due_date), "MMM d, yyyy")}</p>}
             </div>
           </div>
+
+          <div className="mt-3 rounded-2xl border border-border/70 p-3">
+            <p className="mb-2 text-sm font-semibold">Loan application status</p>
+            {!loanApplication ? (
+              <p className="text-sm text-muted-foreground">No loan application yet.</p>
+            ) : (
+              <div className="space-y-1 text-sm">
+                <p>
+                  Status: <span className="font-semibold uppercase">{loanApplication.status}</span>
+                </p>
+                <p>Requested: {formatCurrency(loanApplication.requested_amount)} / {loanApplication.requested_term_months} months</p>
+                <p>Submitted: {loanApplication.created_at ? format(new Date(loanApplication.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
+                {!!loanApplication.admin_note && <p className="text-muted-foreground">Admin note: {loanApplication.admin_note}</p>}
+              </div>
+            )}
+          </div>
+
           <div className="mt-3 rounded-2xl border border-border/70 p-3">
             <p className="mb-2 text-sm font-semibold">Request a new OpenPay loan</p>
             <div className="grid gap-2 sm:grid-cols-2">
               <input value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Loan amount (${currency.code})`} className="h-10 rounded-xl border border-border px-3" />
               <input value={loanTermMonths} onChange={(e) => setLoanTermMonths(e.target.value)} type="number" min="1" max="60" placeholder="Term months" className="h-10 rounded-xl border border-border px-3" />
             </div>
-            <button disabled={requestingLoan} onClick={handleRequestLoan} className="mt-2 h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
-              {requestingLoan ? "Processing..." : "Request Loan"}
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <input value={loanApplicantName} onChange={(e) => setLoanApplicantName(e.target.value)} placeholder="Full name" className="h-10 rounded-xl border border-border px-3" />
+              <input value={loanContactNumber} onChange={(e) => setLoanContactNumber(e.target.value)} placeholder="Contact number" className="h-10 rounded-xl border border-border px-3" />
+              <input value={loanAddressLine} onChange={(e) => setLoanAddressLine(e.target.value)} placeholder="Address" className="h-10 rounded-xl border border-border px-3 sm:col-span-2" />
+              <input value={loanCity} onChange={(e) => setLoanCity(e.target.value)} placeholder="City" className="h-10 rounded-xl border border-border px-3" />
+              <input value={loanCountry} onChange={(e) => setLoanCountry(e.target.value)} placeholder="Country" className="h-10 rounded-xl border border-border px-3" />
+            </div>
+            <div className="mt-2 rounded-xl border border-border/70 bg-secondary/30 p-2 text-xs text-muted-foreground">
+              OpenPay account: {userAccount?.account_number || "-"} {userAccount?.account_username ? `(@${userAccount.account_username})` : ""}
+            </div>
+            <label className="mt-2 flex items-start gap-2 text-xs text-foreground">
+              <input type="checkbox" checked={loanAgreementAccepted} onChange={(e) => setLoanAgreementAccepted(e.target.checked)} />
+              <span>I agree to OpenPay loan terms and confirm my application details are real and accurate.</span>
+            </label>
+            <button
+              disabled={requestingLoan || loanApplication?.status === "pending"}
+              onClick={handleRequestLoan}
+              className="mt-2 h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {requestingLoan ? "Submitting..." : "Submit Loan Application"}
             </button>
           </div>
           <div className="mt-3 rounded-2xl border border-border/70 p-3">
             <p className="mb-2 text-sm font-semibold">Pay monthly installment</p>
             <input value={loanPaymentAmount} onChange={(e) => setLoanPaymentAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Default: ${loan ? formatCurrency(loan.monthly_payment_amount) : `monthly due (${currency.code})`}`} className="h-10 w-full rounded-xl border border-border px-3" />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setLoanPaymentMethod("wallet")}
+                className={`h-10 rounded-xl border text-sm font-semibold ${loanPaymentMethod === "wallet" ? "border-paypal-blue bg-paypal-blue text-white" : "border-border bg-white text-foreground"}`}
+              >
+                OpenPay Balance
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoanPaymentMethod("pi")}
+                className={`h-10 rounded-xl border text-sm font-semibold ${loanPaymentMethod === "pi" ? "border-paypal-blue bg-paypal-blue text-white" : "border-border bg-white text-foreground"}`}
+              >
+                Pi Payment
+              </button>
+            </div>
+            {loanPaymentMethod === "pi" && (
+              <input
+                value={loanPaymentReference}
+                onChange={(e) => setLoanPaymentReference(e.target.value)}
+                placeholder="Pi payment reference (required)"
+                className="mt-2 h-10 w-full rounded-xl border border-border px-3"
+              />
+            )}
             <button disabled={payingLoan || !loan || loan.status !== "active"} onClick={handlePayLoan} className="mt-2 h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
               {payingLoan ? "Paying..." : "Pay Loan"}
             </button>
+          </div>
+          <div className="mt-3 rounded-2xl border border-border/70 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold">Loan payment history</p>
+              <p className="text-xs text-muted-foreground">{loanPaymentHistory.length} records</p>
+            </div>
+            {loanPaymentHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No loan payments yet.</p>
+            ) : (
+              <div className="divide-y divide-border/70 rounded-xl border border-border/70">
+                {loanPaymentHistory.map((entry) => (
+                  <div key={entry.id} className="px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">{formatCurrency(entry.amount)}</p>
+                      <p className="text-xs uppercase text-muted-foreground">{entry.payment_method}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Principal {formatCurrency(entry.principal_component)} | Fee {formatCurrency(entry.fee_component)}
+                    </p>
+                    {entry.payment_reference && <p className="text-xs text-muted-foreground">Ref: {toPreviewText(entry.payment_reference, 44)}</p>}
+                    <p className="text-xs text-muted-foreground">{entry.created_at ? format(new Date(entry.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

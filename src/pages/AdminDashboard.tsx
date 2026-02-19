@@ -30,6 +30,27 @@ type AdminSummary = {
   page_offset: number;
 };
 
+type LoanApplicationRow = {
+  id: string;
+  user_id: string;
+  requested_amount: number;
+  requested_term_months: number;
+  credit_score_snapshot: number;
+  full_name: string;
+  contact_number: string;
+  address_line: string;
+  city: string;
+  country: string;
+  openpay_account_number: string;
+  openpay_account_username: string;
+  agreement_accepted: boolean;
+  status: string;
+  admin_note: string;
+  reviewed_at: string | null;
+  created_at: string;
+  applicant_display_name: string;
+};
+
 const PAGE_SIZE = 50;
 const ADMIN_PROFILE_USERNAMES = new Set(["openpay", "wainfoundation"]);
 
@@ -57,6 +78,7 @@ const AdminDashboard = () => {
   const [viewerEmail, setViewerEmail] = useState<string>("");
   const [viewerUsername, setViewerUsername] = useState<string>("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [loanApplications, setLoanApplications] = useState<LoanApplicationRow[]>([]);
 
   const hasPrev = offset > 0;
   const hasNext = useMemo(() => {
@@ -88,9 +110,19 @@ const AdminDashboard = () => {
           .select("username")
           .eq("id", user.id)
           .maybeSingle();
-        setViewerUsername((profile?.username || "").trim().toLowerCase());
+        const normalizedUsername = (profile?.username || "").trim().toLowerCase();
+        setViewerUsername(normalizedUsername);
+        const normalizedEmailLocal = String(user.email || "").split("@")[0].trim().toLowerCase();
+        if (!ADMIN_PROFILE_USERNAMES.has(normalizedUsername) && !ADMIN_PROFILE_USERNAMES.has(normalizedEmailLocal)) {
+          toast.error("Admin access is restricted to @openpay and @wainfoundation");
+          navigate("/dashboard", { replace: true });
+          return;
+        }
       } catch {
         setViewerUsername("");
+        toast.error("Admin access check failed");
+        navigate("/dashboard", { replace: true });
+        return;
       }
 
       const { data, error } = await supabase.rpc("admin_dashboard_history" as any, {
@@ -116,6 +148,36 @@ const AdminDashboard = () => {
       setHistoryRows(payload.data.history);
       setSummary(payload.data.summary);
       setOffset(nextOffset);
+
+      const { data: loanApps, error: loanAppsError } = await (supabase as any).rpc("admin_list_loan_applications", {
+        p_status: "pending",
+        p_limit: 50,
+        p_offset: 0,
+      });
+      if (loanAppsError) throw new Error(loanAppsError.message || "Failed to load loan applications");
+      const normalizedLoanApps = Array.isArray(loanApps) ? loanApps : [];
+      setLoanApplications(
+        normalizedLoanApps.map((row: any) => ({
+          id: String(row.id),
+          user_id: String(row.user_id),
+          requested_amount: Number(row.requested_amount || 0),
+          requested_term_months: Number(row.requested_term_months || 0),
+          credit_score_snapshot: Number(row.credit_score_snapshot || 620),
+          full_name: String(row.full_name || ""),
+          contact_number: String(row.contact_number || ""),
+          address_line: String(row.address_line || ""),
+          city: String(row.city || ""),
+          country: String(row.country || ""),
+          openpay_account_number: String(row.openpay_account_number || ""),
+          openpay_account_username: String(row.openpay_account_username || ""),
+          agreement_accepted: Boolean(row.agreement_accepted),
+          status: String(row.status || "pending"),
+          admin_note: String(row.admin_note || ""),
+          reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,
+          created_at: String(row.created_at || ""),
+          applicant_display_name: String(row.applicant_display_name || ""),
+        })),
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load admin dashboard");
     } finally {
@@ -157,6 +219,28 @@ const AdminDashboard = () => {
       await loadPage(offset);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Review failed");
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
+  const handleLoanReview = async (applicationId: string, decision: "approve" | "reject") => {
+    setReviewingId(applicationId);
+    try {
+      const { data, error } = await (supabase as any).rpc("admin_review_loan_application", {
+        p_application_id: applicationId,
+        p_decision: decision,
+        p_admin_note: `Reviewed by @${viewerUsername || "admin"}`,
+      });
+      if (error) throw new Error(error.message || "Loan review failed");
+      if (decision === "approve") {
+        toast.success(`Loan approved${data ? ` | Loan ${String(data).slice(0, 8)}` : ""}`);
+      } else {
+        toast.success("Loan rejected");
+      }
+      await loadPage(offset);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Loan review failed");
     } finally {
       setReviewingId(null);
     }
@@ -273,6 +357,58 @@ const AdminDashboard = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-paypal-dark">Loan Applications (Pending)</h2>
+            <p className="text-xs text-muted-foreground">{loanApplications.length} pending</p>
+          </div>
+          {loanApplications.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No pending loan applications.</p>
+          ) : (
+            <div className="space-y-3">
+              {loanApplications.map((app) => (
+                <div key={app.id} className="rounded-xl border border-border/70 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-foreground">{app.applicant_display_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(app.created_at), "MMM d, yyyy h:mm a")} | Score {app.credit_score_snapshot}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-paypal-blue">
+                      ${app.requested_amount.toFixed(2)} / {app.requested_term_months}m
+                    </p>
+                  </div>
+                  <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                    <p>Full name: {app.full_name}</p>
+                    <p>Contact: {app.contact_number}</p>
+                    <p className="sm:col-span-2">Address: {app.address_line}, {app.city}, {app.country}</p>
+                    <p>Account number: {app.openpay_account_number}</p>
+                    <p>Account username: @{app.openpay_account_username}</p>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleLoanReview(app.id, "approve")}
+                      disabled={reviewingId === app.id}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleLoanReview(app.id, "reject")}
+                      disabled={reviewingId === app.id}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex items-center justify-end gap-2">

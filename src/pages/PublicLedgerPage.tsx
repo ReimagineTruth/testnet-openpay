@@ -17,6 +17,7 @@ type LedgerTransaction = {
 };
 
 const PAGE_SIZE = 30;
+const CORE_ADMIN_USERNAMES = new Set(["openpay", "wainfoundation"]);
 
 const PublicLedgerPage = () => {
   const navigate = useNavigate();
@@ -40,6 +41,18 @@ const PublicLedgerPage = () => {
       }
 
       setUserId(user.id);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .maybeSingle();
+      const normalizedUsername = String(profile?.username || "").trim().toLowerCase();
+      const normalizedEmailLocal = String(user.email || "").split("@")[0].trim().toLowerCase();
+      if (!CORE_ADMIN_USERNAMES.has(normalizedUsername) && !CORE_ADMIN_USERNAMES.has(normalizedEmailLocal)) {
+        toast.error("Ledger access is restricted to @openpay and @wainfoundation");
+        navigate("/dashboard", { replace: true });
+        return;
+      }
       const hasPiAuth = Boolean((user.user_metadata as Record<string, unknown> | undefined)?.pi_uid);
       setPiEnabled(hasPiAuth);
       if (!hasPiAuth) {
