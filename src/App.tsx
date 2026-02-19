@@ -31,6 +31,7 @@ import PrivacyPage from "./pages/PrivacyPage";
 import AboutOpenPayPage from "./pages/AboutOpenPayPage";
 import LegalPage from "./pages/LegalPage";
 import OpenPayDocumentationPage from "./pages/OpenPayDocumentationPage";
+import OpenPayApiDocsPage from "./pages/OpenPayApiDocsPage";
 import OpenPartnerPage from "./pages/OpenPartnerPage";
 import PiWhitepaperPage from "./pages/PiWhitepaperPage";
 import PiMicaWhitepaperPage from "./pages/PiMicaWhitepaperPage";
@@ -57,19 +58,26 @@ const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const location = useLocation();
-  const firstLoad = useRef(true);
-  const [showRouteSplash, setShowRouteSplash] = useState(false);
+  const routeLoaderReady = useRef(false);
+  const [showRouteSplash, setShowRouteSplash] = useState(true);
 
   useEffect(() => {
-    if (firstLoad.current) {
-      firstLoad.current = false;
+    const timer = window.setTimeout(() => {
+      routeLoaderReady.current = true;
+      setShowRouteSplash(false);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!routeLoaderReady.current) {
       return;
     }
 
     setShowRouteSplash(true);
     const timer = window.setTimeout(() => setShowRouteSplash(false), 500);
     return () => window.clearTimeout(timer);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   return (
     <>
@@ -106,6 +114,7 @@ const AppRoutes = () => {
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/about-openpay" element={<AboutOpenPayPage />} />
         <Route path="/openpay-documentation" element={<OpenPayDocumentationPage />} />
+        <Route path="/openpay-api-docs" element={<OpenPayApiDocsPage />} />
         <Route path="/open-partner" element={<OpenPartnerPage />} />
         <Route path="/pi-whitepaper" element={<PiWhitepaperPage />} />
         <Route path="/pi-mica-whitepaper" element={<PiMicaWhitepaperPage />} />

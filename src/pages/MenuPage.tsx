@@ -166,6 +166,7 @@ const MenuPage = () => {
         { icon: Smartphone, label: "OpenApp Utility Apps", action: () => navigate("/openapp") },
         { icon: Store, label: "Where to use OpenPay", action: () => navigate("/openpay-guide") },
         { icon: BookOpen, label: "OpenPay Documentation", action: () => navigate("/openpay-documentation") },
+        { icon: BookOpen, label: "OpenPay API Docs", action: () => navigate("/openpay-api-docs") },
         { icon: Handshake, label: "Open Partner", action: () => navigate("/open-partner") },
         { icon: FileText, label: "Pi Whitepaper", action: () => navigate("/pi-whitepaper") },
         { icon: FileText, label: "Pi MiCA Whitepaper", action: () => navigate("/pi-mica-whitepaper") },

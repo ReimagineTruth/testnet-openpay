@@ -58,6 +58,10 @@ const OpenPayDocumentationPage = () => {
           <h2 className="font-semibold text-foreground">Documentation Index</h2>
         </div>
         <div className="grid gap-3">
+          <Button variant="outline" className="h-11 justify-between rounded-2xl" onClick={() => navigate("/openpay-api-docs")}>
+            OpenPay API Documentation (Third-party Integration)
+            <ExternalLink className="h-4 w-4" />
+          </Button>
           <Button variant="outline" className="h-11 justify-between rounded-2xl" onClick={() => navigate("/pi-whitepaper")}>
             OpenPay Whitepaper (Pi-aligned)
             <ExternalLink className="h-4 w-4" />

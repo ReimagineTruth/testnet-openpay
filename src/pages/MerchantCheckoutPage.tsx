@@ -11,6 +11,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import SplashScreen from "@/components/SplashScreen";
+import BrandLogo from "@/components/BrandLogo";
 import TransactionReceipt, { type ReceiptData } from "@/components/TransactionReceipt";
 
 type CheckoutSessionPublic = {
@@ -438,7 +439,10 @@ const MerchantCheckoutPage = () => {
                   onClick={() => setPaymentMethod("openpay_wallet")}
                   className={`flex h-16 items-center gap-2 rounded-md border px-3 text-left ${paymentMethod === "openpay_wallet" ? "border-paypal-blue text-paypal-blue" : "border-border text-muted-foreground"}`}
                 >
-                  <WalletCards className="h-5 w-5" />
+                  <div className="relative">
+                    <WalletCards className="h-5 w-5" />
+                    <BrandLogo className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-white" />
+                  </div>
                   <span className="text-lg font-medium">OpenPay Wallet</span>
                 </button>
               </div>
@@ -500,6 +504,7 @@ const MerchantCheckoutPage = () => {
                     onClick={() => navigate(walletPayUrl)}
                     className="mt-3 h-10 w-full rounded-full bg-paypal-blue text-white hover:bg-[#004dc5]"
                   >
+                    <BrandLogo className="mr-2 h-4 w-4" />
                     Open /send in OpenPay
                   </Button>
                   <div className="mt-3 rounded-lg border border-border bg-white p-2">
@@ -593,7 +598,12 @@ const MerchantCheckoutPage = () => {
                 }
                 className="mt-4 h-12 w-full rounded-full bg-[#ebedf3] text-base text-muted-foreground hover:bg-[#e2e6ef]"
               >
-                {paying ? "Processing payment..." : paymentMethod === "card" ? "Pay" : "Pay with OpenPay Wallet"}
+                {paying ? "Processing payment..." : paymentMethod === "card" ? "Pay" : (
+                  <span className="inline-flex items-center">
+                    <BrandLogo className="mr-2 h-4 w-4" />
+                    Pay with OpenPay Wallet
+                  </span>
+                )}
               </Button>
 
               <div className="mt-4 text-center text-sm text-muted-foreground">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BookOpen, CreditCard, Eye, EyeOff, Lock, RefreshCw, RotateCcw, Settings, ShieldCheck, Unlock } from "lucide-react";
+import { ArrowLeft, Bell, BookOpen, CreditCard, Eye, EyeOff, FileText, Lock, RefreshCw, RotateCcw, Settings, ShieldCheck, Unlock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,24 @@ interface VirtualCardRecord {
   card_settings: { allow_checkout?: boolean } | null;
 }
 
+interface VirtualCardTx {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  amount: number;
+  note: string | null;
+  status: string;
+  created_at: string;
+  other_name?: string;
+  other_username?: string | null;
+  is_sent?: boolean;
+}
+
 const formatCardNumber = (value: string) => value.replace(/\D/g, "").replace(/(.{4})/g, "$1 ").trim();
+const isVirtualCardPaymentNote = (note: string | null) => {
+  const raw = String(note || "").toLowerCase();
+  return raw.includes("virtual card payment") || raw.includes("| card ****");
+};
 
 const VirtualCardPage = () => {
   const navigate = useNavigate();
@@ -43,6 +60,9 @@ const VirtualCardPage = () => {
   const [agreementChecked, setAgreementChecked] = useState(false);
   const [cardSignature, setCardSignature] = useState("");
   const [signatureLoaded, setSignatureLoaded] = useState(false);
+  const [virtualCardActivity, setVirtualCardActivity] = useState<VirtualCardTx[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [unreadVirtualCardNotifications, setUnreadVirtualCardNotifications] = useState(0);
 
   const maskedCardNumber = useMemo(() => {
     if (!card?.card_number) return "0000 0000 0000 0000";
@@ -75,6 +95,58 @@ const VirtualCardPage = () => {
         .single();
       setBalance(wallet?.balance || 0);
 
+      setActivityLoading(true);
+      const [{ data: txRows }, { count: unreadCount }] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("id, sender_id, receiver_id, amount, note, status, created_at")
+          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+          .order("created_at", { ascending: false })
+          .limit(120),
+        supabase
+          .from("app_notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .is("read_at", null)
+          .in("type", ["virtual_card_payment_sent"]),
+      ]);
+
+      const vcRows = (txRows || []).filter((tx: any) => isVirtualCardPaymentNote(tx.note));
+      const profileIds = Array.from(
+        new Set(
+          vcRows
+            .map((tx: any) => (tx.sender_id === user.id ? tx.receiver_id : tx.sender_id))
+            .filter((id: string) => !!id),
+        ),
+      );
+
+      let profileMap: Record<string, { full_name: string; username: string | null }> = {};
+      if (profileIds.length) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, username")
+          .in("id", profileIds);
+        profileMap = (profiles || []).reduce((acc: Record<string, { full_name: string; username: string | null }>, row: any) => {
+          acc[row.id] = { full_name: row.full_name || "Unknown", username: row.username || null };
+          return acc;
+        }, {});
+      }
+
+      const enrichedVcRows: VirtualCardTx[] = vcRows.map((tx: any) => {
+        const isSent = tx.sender_id === user.id;
+        const otherId = isSent ? tx.receiver_id : tx.sender_id;
+        return {
+          ...tx,
+          other_name: profileMap[otherId]?.full_name || "OpenPay User",
+          other_username: profileMap[otherId]?.username || null,
+          is_sent: isSent,
+        };
+      });
+
+      setVirtualCardActivity(enrichedVcRows);
+      setUnreadVirtualCardNotifications(Number(unreadCount || 0));
+      setActivityLoading(false);
+
       const { data, error } = await supabase.rpc("upsert_my_virtual_card", {
         p_cardholder_name: null,
         p_card_username: null,
@@ -90,6 +162,7 @@ const VirtualCardPage = () => {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load virtual card");
     } finally {
+      setActivityLoading(false);
       setLoading(false);
     }
   };
@@ -159,7 +232,17 @@ const VirtualCardPage = () => {
           <button onClick={() => navigate(-1)} className="paypal-surface flex h-10 w-10 items-center justify-center rounded-full" aria-label="Back">
             <ArrowLeft className="h-5 w-5 text-foreground" />
           </button>
-          <h1 className="paypal-heading">OpenPay Virtual Card</h1>
+          <h1 className="paypal-heading flex-1">OpenPay Virtual Card</h1>
+          <button
+            onClick={() => navigate("/notifications")}
+            className="relative paypal-surface flex h-10 w-10 items-center justify-center rounded-full"
+            aria-label="Virtual card notifications"
+          >
+            <Bell className="h-5 w-5 text-foreground" />
+            {unreadVirtualCardNotifications > 0 && (
+              <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" aria-hidden="true" />
+            )}
+          </button>
         </div>
 
         <div className="rounded-2xl border border-border/70 bg-card/95 p-3 text-sm text-muted-foreground">
@@ -246,7 +329,7 @@ const VirtualCardPage = () => {
           {isBackVisible ? "Show Front of Card" : "Show Back of Card"}
         </Button>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => setShowGuide(true)}>
             <BookOpen className="mr-2 h-4 w-4" />
             Guide
@@ -254,6 +337,10 @@ const VirtualCardPage = () => {
           <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => setShowSafetyAgreement(true)}>
             <ShieldCheck className="mr-2 h-4 w-4" />
             Safety Agreement
+          </Button>
+          <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={() => navigate("/openpay-api-docs")}>
+            <FileText className="mr-2 h-4 w-4" />
+            API docs
           </Button>
         </div>
 
@@ -380,6 +467,41 @@ const VirtualCardPage = () => {
           <p className="mt-1 text-xs text-muted-foreground">
             Update your profile details to change cardholder name or card username.
           </p>
+        </div>
+
+        <div className="paypal-surface mt-4 rounded-3xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-foreground">Virtual card activity</h2>
+            <button onClick={() => navigate("/activity")} className="text-xs font-semibold text-paypal-blue">
+              See all
+            </button>
+          </div>
+          {activityLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((row) => (
+                <div key={row} className="h-16 animate-pulse rounded-2xl bg-secondary" />
+              ))}
+            </div>
+          ) : virtualCardActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No virtual card payments yet.</p>
+          ) : (
+            <div className="divide-y divide-border/70 rounded-2xl border border-border/70">
+              {virtualCardActivity.slice(0, 12).map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{tx.other_name}</p>
+                    {tx.other_username && <p className="text-xs text-muted-foreground">@{tx.other_username}</p>}
+                    <p className="text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">{tx.note || "Virtual card payment"}</p>
+                  </div>
+                  <p className={`text-sm font-semibold ${tx.is_sent ? "text-red-500" : "text-paypal-success"}`}>
+                    {tx.is_sent ? "-" : "+"}
+                    {formatCurrency(Number(tx.amount || 0))}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

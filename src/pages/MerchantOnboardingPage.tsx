@@ -1,6 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, Bell, Boxes, Copy, CreditCard, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, MessageCircle, Plus, Users, Wallet, X } from "lucide-react";
+import { ArrowLeft, BarChart3, Bell, Boxes, Copy, CreditCard, FileText, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, MessageCircle, Plus, Trash2, Users, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,16 @@ import { supabase } from "@/integrations/supabase/client";
 import BrandLogo from "@/components/BrandLogo";
 import SplashScreen from "@/components/SplashScreen";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type PortalView = "home" | "balances" | "transactions" | "customers" | "products" | "api_keys" | "checkout" | "analytics";
 type Mode = "sandbox" | "live";
@@ -62,7 +72,6 @@ const MerchantOnboardingPage = () => {
   const [merchantUsername, setMerchantUsername] = useState("");
   const [merchantLogoUrl, setMerchantLogoUrl] = useState("");
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
-  const [savingProfile, setSavingProfile] = useState(false);
 
   const [apiKeys, setApiKeys] = useState<MerchantApiKey[]>([]);
   const [keyName, setKeyName] = useState("Default key");
@@ -87,6 +96,9 @@ const MerchantOnboardingPage = () => {
   const [checkoutSecretKey, setCheckoutSecretKey] = useState("");
   const [creatingSession, setCreatingSession] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "api_key" | "checkout"; id: string; label: string } | null>(null);
 
   const modeProducts = useMemo(() => products.filter((p) => p.currency.toUpperCase() === checkoutCurrency.toUpperCase() && p.is_active), [products, checkoutCurrency]);
   const sessionsById = useMemo(() => {
@@ -96,12 +108,23 @@ const MerchantOnboardingPage = () => {
     });
     return map;
   }, [sessions]);
-  const currencyOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const list = currencies
-      .map((item) => (item.code || "").toUpperCase())
-      .filter((code) => code.length === 3 && !seen.has(code) && seen.add(code));
-    if (!list.includes("USD")) list.unshift("USD");
+  const currencyChoices = useMemo(() => {
+    const map = new Map<string, { code: string; name: string; flag: string }>();
+    currencies.forEach((item) => {
+      const code = (item.code || "").toUpperCase();
+      if (code.length !== 3 || map.has(code)) return;
+      map.set(code, {
+        code,
+        name: item.name || code,
+        flag: item.flag || "PI",
+      });
+    });
+    const list = Array.from(map.values());
+    list.sort((a, b) => {
+      if (a.code === "PI") return -1;
+      if (b.code === "PI") return 1;
+      return a.code.localeCompare(b.code);
+    });
     return list;
   }, [currencies]);
   const apiKeysById = useMemo(() => {
@@ -135,8 +158,17 @@ const MerchantOnboardingPage = () => {
     return { items, total: items.reduce((sum, i) => sum + i.line_total, 0) };
   }, [modeProducts, selectedQty]);
 
-  const loadPortal = async (uid: string) => {
-    const [{ data: profile }, { data: keyRows }, { data: productRows }, { data: paymentRows }, { data: sessionRows }, { data: walletRow }, { count: unreadCount }] = await Promise.all([
+  const loadPortal = async (uid: string, selectedMode: Mode = mode) => {
+    const [
+      { data: profile },
+      { data: keyRows },
+      { data: productRows },
+      { data: paymentRows },
+      { data: sessionRows },
+      { data: walletRow },
+      { count: unreadCount },
+      { data: analyticsPayload },
+    ] = await Promise.all([
       db.from("merchant_profiles").select("user_id, merchant_name, merchant_username, merchant_logo_url, default_currency").eq("user_id", uid).maybeSingle(),
       db.from("merchant_api_keys").select("id, key_mode, key_name, publishable_key, secret_key_last4, is_active, created_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
       db.from("merchant_products").select("id, product_code, product_name, product_description, unit_amount, currency, is_active").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
@@ -144,6 +176,7 @@ const MerchantOnboardingPage = () => {
       db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, customer_name, customer_email, created_at").eq("merchant_user_id", uid),
       db.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
       db.from("app_notifications").select("id", { count: "exact", head: true }).eq("user_id", uid).is("read_at", null),
+      db.rpc("get_my_merchant_analytics", { p_mode: selectedMode, p_days: 30 }),
     ]);
 
     if (profile) {
@@ -162,6 +195,7 @@ const MerchantOnboardingPage = () => {
     setSessions((sessionRows || []) as MerchantSession[]);
     setWalletBalance(Number(walletRow?.balance || 0));
     setUnreadNotifications(Number(unreadCount || 0));
+    setAnalyticsData(Array.isArray(analyticsPayload) ? analyticsPayload[0] : analyticsPayload);
   };
 
   useEffect(() => {
@@ -214,7 +248,18 @@ const MerchantOnboardingPage = () => {
     setMobileNavOpen(false);
   }, [activeView]);
 
+  useEffect(() => {
+    if (!userId) return;
+    loadPortal(userId, mode);
+  }, [mode, userId]);
+
   const modeLabel = mode === "sandbox" ? "Sandbox" : "Live";
+  const shortenValue = (value: string, start = 10, end = 6) => {
+    if (!value) return "";
+    if (value.length <= start + end + 3) return value;
+    return `${value.slice(0, start)}...${value.slice(-end)}`;
+  };
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
 
   const handleCopy = async (value: string, label: string) => {
     if (!value) return;
@@ -224,25 +269,6 @@ const MerchantOnboardingPage = () => {
     } catch {
       toast.error("Copy failed");
     }
-  };
-
-  const saveProfile = async () => {
-    setSavingProfile(true);
-    const { error } = await db.rpc("upsert_my_merchant_profile", {
-      p_merchant_name: merchantName,
-      p_merchant_username: merchantUsername,
-      p_merchant_logo_url: merchantLogoUrl || null,
-      p_default_currency: defaultCurrency,
-    });
-    setSavingProfile(false);
-
-    if (error) {
-      toast.error(error.message || "Failed to save merchant profile");
-      return;
-    }
-
-    if (userId) await loadPortal(userId);
-    toast.success("Merchant profile saved");
   };
 
   const createKey = async () => {
@@ -273,6 +299,16 @@ const MerchantOnboardingPage = () => {
 
     if (userId) await loadPortal(userId);
     toast.success("API key revoked");
+  };
+
+  const deleteKey = async (id: string) => {
+    const { data, error } = await db.rpc("delete_my_merchant_api_key", { p_key_id: id });
+    if (error || !data) {
+      toast.error(error?.message || "Failed to delete API key");
+      return;
+    }
+    if (userId) await loadPortal(userId);
+    toast.success("API key deleted");
   };
 
   const createProduct = async () => {
@@ -363,21 +399,46 @@ const MerchantOnboardingPage = () => {
     toast.success(`${modeLabel} checkout link ready`);
   };
 
+  const deleteCheckoutLink = async (sessionId: string) => {
+    const { data, error } = await db.rpc("delete_my_merchant_checkout_link", { p_session_id: sessionId });
+    if (error) {
+      toast.error(error.message || "Failed to delete checkout link");
+      return;
+    }
+    if (!data) {
+      toast.error("Cannot delete this link (it may already be paid).");
+      return;
+    }
+    if (userId) await loadPortal(userId);
+    toast.success("Checkout link deleted");
+  };
+
+  const confirmDeleteTarget = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === "api_key") {
+      await deleteKey(deleteTarget.id);
+    } else {
+      await deleteCheckoutLink(deleteTarget.id);
+    }
+    setDeleteModalOpen(false);
+    setDeleteTarget(null);
+  };
+
   if (loading) return <SplashScreen message="Loading merchant portal..." />;
 
   const renderContent = () => {
     if (activeView === "home") {
       return (
-        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[1fr_320px]">
           <div className="space-y-4">
             <div className="rounded-2xl border border-border bg-white p-5">
               <p className="text-sm text-muted-foreground">Today</p>
               <h2 className="mt-1 text-3xl font-bold text-slate-900">{modeLabel} overview</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Gross volume</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.gross.toFixed(2)}</p></div>
-                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Available</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.available.toFixed(2)}</p></div>
+                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Gross volume</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.gross.toFixed(2)}</p></div>
+                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Available</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.available.toFixed(2)}</p></div>
                 <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Payments</p><p className="mt-1 text-xl font-bold">{kpis.total}</p></div>
-                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Wallet balance</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {walletBalance.toFixed(2)}</p></div>
+                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Wallet balance</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {walletBalance.toFixed(2)}</p></div>
               </div>
             </div>
             <div className="rounded-2xl border border-border bg-white p-5">
@@ -407,13 +468,13 @@ const MerchantOnboardingPage = () => {
 
     if (activeView === "api_keys") {
       return (
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="rounded-2xl border border-border bg-white p-5">
             <h3 className="text-2xl font-bold text-slate-900">API keys</h3>
             <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto]"><Input value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="Key name" className="h-11 rounded-lg" /><Button onClick={createKey} disabled={creatingKey} className="h-11 rounded-lg">{creatingKey ? "Creating..." : `Create ${modeLabel} key`}</Button></div>
             {!!lastSecretKey && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Secret key (showing once)</p><p className="mt-1 break-all font-mono text-xs text-amber-800">{lastSecretKey}</p><Button onClick={() => handleCopy(lastSecretKey, "Secret key")} className="mt-2 h-8 rounded-lg" variant="outline">Copy secret key</Button></div>}
           </div>
-          <div className="rounded-2xl border border-border bg-white p-5 space-y-2">{apiKeys.map((k) => <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3"><div><p className="text-sm font-semibold text-slate-900">{k.key_name} <span className="text-xs text-muted-foreground">({k.key_mode})</span></p><p className="font-mono text-xs text-muted-foreground">{k.publishable_key}</p><p className="text-xs text-muted-foreground">Secret ending: ****{k.secret_key_last4}</p></div><div className="flex gap-2"><Button className="h-8 rounded-lg" variant="outline" onClick={() => handleCopy(k.publishable_key, "Publishable key")}>Copy</Button>{k.is_active && <Button className="h-8 rounded-lg" variant="outline" onClick={() => revokeKey(k.id)}>Revoke</Button>}</div></div>)}{!apiKeys.length && <p className="text-sm text-muted-foreground">No API keys created.</p>}</div>
+          <div className="space-y-2 rounded-2xl border border-border bg-white p-5">{apiKeys.map((k) => <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-900">{k.key_name} <span className="text-xs text-muted-foreground">({k.key_mode})</span></p><p className="truncate font-mono text-xs text-muted-foreground" title={k.publishable_key}>{shortenValue(k.publishable_key, 14, 10)}</p><p className="text-xs text-muted-foreground">Secret ending: ****{k.secret_key_last4}</p></div><div className="flex w-full gap-2 sm:w-auto"><Button className="h-8 rounded-lg" variant="outline" onClick={() => handleCopy(k.publishable_key, "Publishable key")}>Copy</Button>{k.is_active && <Button className="h-8 rounded-lg" variant="outline" onClick={() => revokeKey(k.id)}>Revoke</Button>}<Button className="h-8 rounded-lg" variant="outline" onClick={() => { setDeleteTarget({ type: "api_key", id: k.id, label: k.key_name }); setDeleteModalOpen(true); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button></div></div>)}{!apiKeys.length && <p className="text-sm text-muted-foreground">No API keys created.</p>}</div>
         </div>
       );
     }
@@ -433,14 +494,16 @@ const MerchantOnboardingPage = () => {
                 onChange={(e) => setProductCurrency(e.target.value.toUpperCase())}
                 className="h-11 rounded-lg border border-border bg-white px-3 text-sm"
               >
-                {currencyOptions.map((code) => (
-                  <option key={code} value={code}>{code}</option>
+                {currencyChoices.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                  </option>
                 ))}
               </select>
               <Button onClick={createProduct} disabled={creatingProduct} className="h-11 rounded-lg md:col-span-2"><Plus className="mr-2 h-4 w-4" />{creatingProduct ? "Adding..." : "Add product"}</Button>
             </div>
           </div>
-          <div className="rounded-2xl border border-border bg-white p-5 space-y-2">{products.map((p) => <div key={p.id} className="rounded-xl border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-900">{p.product_name}</p><p className="text-xs text-muted-foreground">{p.product_code} | {p.currency} {Number(p.unit_amount).toFixed(2)}</p></div><Button variant="outline" className="h-8 rounded-lg" onClick={() => toggleProductActive(p)}>{p.is_active ? "Set inactive" : "Set active"}</Button></div>{!!p.product_description && <p className="mt-1 text-sm text-muted-foreground">{p.product_description}</p>}</div>)}{!products.length && <p className="text-sm text-muted-foreground">No products yet.</p>}</div>
+          <div className="rounded-2xl border border-border bg-white p-5 space-y-2">{products.map((p) => <div key={p.id} className="rounded-xl border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-900">{p.product_name}</p><p className="text-xs text-muted-foreground">{p.product_code} | {getPiCodeLabel((p.currency || "").toUpperCase())} {Number(p.unit_amount).toFixed(2)}</p></div><Button variant="outline" className="h-8 rounded-lg" onClick={() => toggleProductActive(p)}>{p.is_active ? "Set inactive" : "Set active"}</Button></div>{!!p.product_description && <p className="mt-1 text-sm text-muted-foreground">{p.product_description}</p>}</div>)}{!products.length && <p className="text-sm text-muted-foreground">No products yet.</p>}</div>
         </div>
       );
     }
@@ -457,26 +520,28 @@ const MerchantOnboardingPage = () => {
                 onChange={(e) => setCheckoutCurrency(e.target.value.toUpperCase())}
                 className="h-11 rounded-lg border border-border bg-white px-3 text-sm"
               >
-                {currencyOptions.map((code) => (
-                  <option key={code} value={code}>{code}</option>
+                {currencyChoices.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                  </option>
                 ))}
               </select>
               <Input value={checkoutSecretKey} onChange={(e) => setCheckoutSecretKey(e.target.value)} placeholder={`Paste osk_${mode}_...`} className="h-11 rounded-lg" />
             </div>
-            <div className="mt-4 space-y-2">{modeProducts.map((p) => <div key={p.id} className="grid grid-cols-1 items-center gap-2 rounded-xl border border-border p-2 sm:grid-cols-[1fr_120px]"><p className="text-sm text-slate-900">{p.product_name} ({p.currency} {Number(p.unit_amount).toFixed(2)})</p><Input value={String(selectedQty[p.id] || "")} onChange={(e) => setSelectedQty((prev) => ({ ...prev, [p.id]: Number(e.target.value || 0) }))} placeholder="Qty" className="h-10 rounded-lg" /></div>)}{!modeProducts.length && <p className="text-sm text-muted-foreground">No active products in {checkoutCurrency}.</p>}</div>
+            <div className="mt-4 space-y-2">{modeProducts.map((p) => <div key={p.id} className="grid grid-cols-1 items-center gap-2 rounded-xl border border-border p-2 sm:grid-cols-[1fr_120px]"><p className="text-sm text-slate-900">{p.product_name} ({getPiCodeLabel((p.currency || "").toUpperCase())} {Number(p.unit_amount).toFixed(2)})</p><Input value={String(selectedQty[p.id] || "")} onChange={(e) => setSelectedQty((prev) => ({ ...prev, [p.id]: Number(e.target.value || 0) }))} placeholder="Qty" className="h-10 rounded-lg" /></div>)}{!modeProducts.length && <p className="text-sm text-muted-foreground">No active products in {getPiCodeLabel(checkoutCurrency)}.</p>}</div>
             <Button onClick={createCheckoutSession} disabled={creatingSession || !modeProducts.length} className="mt-4 h-11 rounded-lg">{creatingSession ? "Creating link..." : `Create ${modeLabel} checkout link`}</Button>
             {!!checkoutUrl && <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3"><p className="text-sm font-semibold text-blue-900">Checkout link ready</p><p className="mt-1 break-all text-xs text-blue-800">{checkoutUrl}</p><div className="mt-2 flex gap-2"><Button variant="outline" className="h-8 rounded-lg" onClick={() => handleCopy(checkoutUrl, "Checkout link")}>Copy</Button><Button variant="outline" className="h-8 rounded-lg" onClick={() => window.open(checkoutUrl, "_blank")}>Open</Button></div></div>}
           </div>
-          <div className="space-y-4"><div className="rounded-2xl border border-border bg-white p-5"><h4 className="font-semibold text-slate-900">Preview</h4><div className="mt-3 space-y-2 text-sm">{selectedCart.items.map((item) => <div key={item.product_id} className="flex justify-between"><span>{item.name} x{item.quantity}</span><span>{checkoutCurrency} {item.line_total.toFixed(2)}</span></div>)}{!selectedCart.items.length && <p className="text-muted-foreground">Select products to preview total.</p>}<div className="mt-2 border-t pt-2 font-semibold">Total: {checkoutCurrency} {selectedCart.total.toFixed(2)}</div></div></div><div className="rounded-2xl border border-border bg-white p-5"><h4 className="font-semibold text-slate-900">Recent links ({modeLabel})</h4><div className="mt-3 space-y-2">{modeSessions.slice(0, 8).map((s) => { const link = typeof window === "undefined" ? "" : `${window.location.origin}/merchant-checkout?session=${encodeURIComponent(s.session_token)}`; return <div key={s.id} className="rounded-lg border border-border p-2"><p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString()}</p><p className="text-sm font-medium">{s.currency} {Number(s.total_amount).toFixed(2)} · {s.status}</p><div className="mt-1 flex gap-2"><Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => handleCopy(link, "Checkout link")}>Copy</Button><Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => window.open(link, "_blank")}>Open</Button></div></div>; })}{!modeSessions.length && <p className="text-sm text-muted-foreground">No checkout links yet.</p>}</div></div></div>
+          <div className="space-y-4"><div className="rounded-2xl border border-border bg-white p-5"><h4 className="font-semibold text-slate-900">Preview</h4><div className="mt-3 space-y-2 text-sm">{selectedCart.items.map((item) => <div key={item.product_id} className="flex justify-between"><span>{item.name} x{item.quantity}</span><span>{getPiCodeLabel(checkoutCurrency)} {item.line_total.toFixed(2)}</span></div>)}{!selectedCart.items.length && <p className="text-muted-foreground">Select products to preview total.</p>}<div className="mt-2 border-t pt-2 font-semibold">Total: {getPiCodeLabel(checkoutCurrency)} {selectedCart.total.toFixed(2)}</div></div></div><div className="rounded-2xl border border-border bg-white p-5"><h4 className="font-semibold text-slate-900">Recent links ({modeLabel})</h4><div className="mt-3 space-y-2">{modeSessions.slice(0, 8).map((s) => { const link = typeof window === "undefined" ? "" : `${window.location.origin}/merchant-checkout?session=${encodeURIComponent(s.session_token)}`; return <div key={s.id} className="rounded-lg border border-border p-2"><p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString()}</p><p className="text-sm font-medium">{getPiCodeLabel((s.currency || "").toUpperCase())} {Number(s.total_amount).toFixed(2)} · {s.status}</p><div className="mt-1 flex flex-wrap gap-2"><Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => handleCopy(link, "Checkout link")}>Copy</Button><Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => window.open(link, "_blank")}>Open</Button>{s.status !== "paid" && <Button variant="outline" className="h-7 rounded-md px-2 text-xs" onClick={() => { setDeleteTarget({ type: "checkout", id: s.id, label: s.session_token }); setDeleteModalOpen(true); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>}</div></div>; })}{!modeSessions.length && <p className="text-sm text-muted-foreground">No checkout links yet.</p>}</div></div></div>
         </div>
       );
     }
 
     if (activeView === "transactions") {
       return (
-        <div className="rounded-2xl border border-border bg-white p-5">
+        <div className="min-w-0 rounded-2xl border border-border bg-white p-5">
           <h3 className="text-2xl font-bold text-slate-900">Transactions</h3>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
@@ -508,19 +573,41 @@ const MerchantOnboardingPage = () => {
                         {!customerEmail && customer?.username && <p className="text-xs text-muted-foreground">@{customer.username}</p>}
                       </td>
                       <td className="py-2 pr-3">
-                        <p className="font-mono text-xs text-slate-700">{linkDisplay}</p>
+                        <p className="font-mono text-xs text-slate-700">{shortenValue(linkDisplay, 14, 8)}</p>
                       </td>
                       <td className="py-2 pr-3">
                         <p className="text-xs text-slate-700">{keyDisplay}</p>
                       </td>
-                      <td className="py-2 pr-3">{p.currency} {Number(p.amount).toFixed(2)}</td>
+                      <td className="py-2 pr-3">{getPiCodeLabel((p.currency || "").toUpperCase())} {Number(p.amount).toFixed(2)}</td>
                       <td className="py-2 pr-3">{p.status}</td>
-                      <td className="py-2 font-mono text-xs">{p.transaction_id}</td>
+                      <td className="py-2 font-mono text-xs">{shortenValue(p.transaction_id, 8, 6)}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            {!modePayments.length && <p className="py-6 text-sm text-muted-foreground">No transactions yet.</p>}
+          </div>
+          <div className="mt-4 grid gap-2 md:hidden">
+            {modePayments.map((p) => {
+              const customer = customersById[p.buyer_user_id];
+              const session = sessionsById[p.session_id];
+              const customerDisplayName = session?.customer_name || customer?.full_name || customer?.username || p.buyer_user_id.slice(0, 8);
+              const key = p.api_key_id ? apiKeysById[p.api_key_id] : null;
+              const keyDisplay = key ? `${key.key_name} (****${key.secret_key_last4})` : `${p.key_mode} key`;
+              const linkDisplay = p.payment_link_token ? p.payment_link_token : "Direct checkout";
+
+              return (
+                <div key={p.id} className="rounded-xl border border-border p-3">
+                  <p className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleString()}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{customerDisplayName}</p>
+                  <p className="mt-1 text-xs text-slate-700">{getPiCodeLabel((p.currency || "").toUpperCase())} {Number(p.amount).toFixed(2)} · {p.status}</p>
+                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={linkDisplay}>Link: {shortenValue(linkDisplay, 14, 8)}</p>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{keyDisplay}</p>
+                  <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={p.transaction_id}>TX: {shortenValue(p.transaction_id, 8, 6)}</p>
+                </div>
+              );
+            })}
             {!modePayments.length && <p className="py-6 text-sm text-muted-foreground">No transactions yet.</p>}
           </div>
         </div>
@@ -563,38 +650,146 @@ const MerchantOnboardingPage = () => {
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Incoming</p>
-              <p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.gross.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.gross.toFixed(2)}</p>
             </div>
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Refunded</p>
-              <p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.refunds.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.refunds.toFixed(2)}</p>
             </div>
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Available</p>
-              <p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.available.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.available.toFixed(2)}</p>
             </div>
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Wallet balance</p>
-              <p className="mt-1 text-xl font-bold">{defaultCurrency} {walletBalance.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {walletBalance.toFixed(2)}</p>
             </div>
           </div>
         </div>
       );
     }
-    return <div className="rounded-2xl border border-border bg-white p-5"><h3 className="text-2xl font-bold text-slate-900">Payments analytics</h3><div className="mt-4 space-y-4"><div><div className="mb-1 flex items-center justify-between text-sm"><span>Success rate</span><span className="font-semibold">{kpis.total ? ((kpis.succeeded / kpis.total) * 100).toFixed(1) : "0.0"}%</span></div><div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-emerald-500" style={{ width: `${kpis.total ? (kpis.succeeded / kpis.total) * 100 : 0}%` }} /></div></div><div><div className="mb-1 flex items-center justify-between text-sm"><span>Failure rate</span><span className="font-semibold">{kpis.total ? ((kpis.failed / kpis.total) * 100).toFixed(1) : "0.0"}%</span></div><div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-rose-500" style={{ width: `${kpis.total ? (kpis.failed / kpis.total) * 100 : 0}%` }} /></div></div></div></div>;
+    const summary = analyticsData?.summary || {};
+    const currencyBreakdown = Array.isArray(analyticsData?.currency_breakdown) ? analyticsData.currency_breakdown : [];
+    const topCustomers = Array.isArray(analyticsData?.top_customers) ? analyticsData.top_customers : [];
+    const topProducts = Array.isArray(analyticsData?.top_products) ? analyticsData.top_products : [];
+    const revenueTimeline = Array.isArray(analyticsData?.revenue_timeline) ? analyticsData.revenue_timeline : [];
+
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <h3 className="text-2xl font-bold text-slate-900">Payments analytics</h3>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-border bg-slate-50 p-4">
+              <p className="text-xs text-muted-foreground">Gross revenue</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(summary.gross_revenue || 0).toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 p-4">
+              <p className="text-xs text-muted-foreground">Net revenue</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(summary.net_revenue || 0).toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 p-4">
+              <p className="text-xs text-muted-foreground">Unique customers</p>
+              <p className="mt-1 text-xl font-bold">{Number(summary.unique_customers || 0)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 p-4">
+              <p className="text-xs text-muted-foreground">Average ticket</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(summary.avg_ticket || 0).toFixed(2)}</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            <div>
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span>Success rate</span>
+                <span className="font-semibold">{Number(summary.success_rate || 0).toFixed(1)}%</span>
+              </div>
+              <div className="h-3 rounded-full bg-slate-100">
+                <div className="h-3 rounded-full bg-emerald-500" style={{ width: `${Math.max(0, Math.min(100, Number(summary.success_rate || 0)))}%` }} />
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span>Failure rate</span>
+                <span className="font-semibold">{Number(summary.failure_rate || 0).toFixed(1)}%</span>
+              </div>
+              <div className="h-3 rounded-full bg-slate-100">
+                <div className="h-3 rounded-full bg-rose-500" style={{ width: `${Math.max(0, Math.min(100, Number(summary.failure_rate || 0)))}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-3">
+          <div className="rounded-2xl border border-border bg-white p-5">
+            <h4 className="font-semibold text-slate-900">Revenue by currency</h4>
+            <div className="mt-3 space-y-2">
+              {currencyBreakdown.map((row: any) => (
+                <div key={String(row.currency)} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                  <span>{getPiCodeLabel(String(row.currency || "").toUpperCase())} ({Number(row.payments || 0)})</span>
+                  <span className="font-semibold">{Number(row.net_revenue || 0).toFixed(2)}</span>
+                </div>
+              ))}
+              {!currencyBreakdown.length && <p className="text-sm text-muted-foreground">No currency activity yet.</p>}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-white p-5">
+            <h4 className="font-semibold text-slate-900">Top customers</h4>
+            <div className="mt-3 space-y-2">
+              {topCustomers.map((row: any) => (
+                <div key={String(row.buyer_user_id)} className="rounded-lg border border-border px-3 py-2 text-sm">
+                  <p className="font-medium text-slate-900">{String(row.customer_name || "OpenPay Customer")}</p>
+                  <p className="text-xs text-muted-foreground">@{String(row.customer_username || "customer")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{Number(row.payments || 0)} payments · {Number(row.total_spent || 0).toFixed(2)}</p>
+                </div>
+              ))}
+              {!topCustomers.length && <p className="text-sm text-muted-foreground">No customer data yet.</p>}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-white p-5">
+            <h4 className="font-semibold text-slate-900">Top products</h4>
+            <div className="mt-3 space-y-2">
+              {topProducts.map((row: any, index: number) => (
+                <div key={`${String(row.item_name)}-${index}`} className="rounded-lg border border-border px-3 py-2 text-sm">
+                  <p className="font-medium text-slate-900">{String(row.item_name || "Item")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Qty {Number(row.quantity_sold || 0)} · {Number(row.gross_revenue || 0).toFixed(2)}</p>
+                </div>
+              ))}
+              {!topProducts.length && <p className="text-sm text-muted-foreground">No product sales yet.</p>}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <h4 className="font-semibold text-slate-900">Revenue timeline (30 days)</h4>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {revenueTimeline.map((row: any) => (
+              <div key={String(row.date)} className="rounded-lg border border-border px-3 py-2 text-sm">
+                <p className="font-medium text-slate-900">{String(row.date)}</p>
+                <p className="text-xs text-muted-foreground">Payments: {Number(row.payments || 0)}</p>
+                <p className="text-xs text-muted-foreground">Gross: {Number(row.gross_revenue || 0).toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">Net: {Number(row.net_revenue || 0).toFixed(2)}</p>
+              </div>
+            ))}
+            {!revenueTimeline.length && <p className="text-sm text-muted-foreground">No timeline data yet.</p>}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <div className="bg-[#0a2a66] px-4 py-2 text-center text-xs text-white">You are testing in {mode}. Switch to live when ready.</div>
       <div className="flex min-h-[calc(100vh-32px)]">
         <aside className="hidden w-64 border-r border-slate-200 bg-white p-4 md:block">
           <div className="mb-6 flex items-center gap-2"><BrandLogo className="h-8 w-8" /><div><p className="text-xs uppercase tracking-wide text-slate-500">OpenPay</p><p className="text-lg font-bold text-slate-900">Merchant Portal</p></div></div>
           <nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = activeView === item.key; return <button key={item.key} onClick={() => setActiveView(item.key)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}><Icon className="h-4 w-4" />{item.label}</button>; })}</nav>
-          <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>
+          <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/openpay-api-docs")}><FileText className="mr-2 h-4 w-4" /> API docs</Button>
+          <Button variant="outline" className="mt-2 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>
         </aside>
 
-        <main className="flex-1 p-4 md:p-6">
+        <main className="min-w-0 flex-1 p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <button onClick={() => setMobileNavOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white md:hidden" aria-label="Open navigation">
@@ -622,24 +817,6 @@ const MerchantOnboardingPage = () => {
 
           {renderContent()}
 
-          <div className="mt-6 rounded-2xl border border-border bg-white p-5">
-            <h3 className="font-semibold text-slate-900">Easy setup settings</h3>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
-              <Input value={merchantName} onChange={(e) => setMerchantName(e.target.value)} placeholder="Merchant name" className="h-10 rounded-lg" />
-              <Input value={merchantUsername} onChange={(e) => setMerchantUsername(e.target.value)} placeholder="Merchant username" className="h-10 rounded-lg" />
-              <Input value={merchantLogoUrl} onChange={(e) => setMerchantLogoUrl(e.target.value)} placeholder="Merchant logo URL" className="h-10 rounded-lg" />
-              <select
-                value={defaultCurrency}
-                onChange={(e) => setDefaultCurrency(e.target.value.toUpperCase())}
-                className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
-              >
-                {currencyOptions.map((code) => (
-                  <option key={code} value={code}>{code}</option>
-                ))}
-              </select>
-            </div>
-            <Button onClick={saveProfile} disabled={savingProfile} className="mt-3 h-10 rounded-lg">{savingProfile ? "Saving..." : "Save profile"}</Button>
-          </div>
         </main>
       </div>
 
@@ -669,12 +846,31 @@ const MerchantOnboardingPage = () => {
               );
             })}
           </nav>
-          <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>
+          <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/openpay-api-docs")}><FileText className="mr-2 h-4 w-4" /> API docs</Button>
+          <Button variant="outline" className="mt-2 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>
         </div>
       </div>
+
+      <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.type === "api_key"
+                ? `Delete API key "${deleteTarget?.label || ""}"? This action cannot be undone.`
+                : "Delete this checkout link? Paid links cannot be deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteTarget}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
 
 export default MerchantOnboardingPage;
+
 

@@ -1,16 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Copy, ExternalLink, Link2, Menu, MessageCircle, MoreHorizontal, Plus, X } from "lucide-react";
+import { Bell, Copy, ExternalLink, FileText, Link2, Menu, MessageCircle, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
 
 import BrandLogo from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SplashScreen from "@/components/SplashScreen";
 import { supabase } from "@/integrations/supabase/client";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Mode = "sandbox" | "live";
 type LinkType = "products" | "custom_amount";
+type ShareTab = "button" | "widget" | "iframe" | "direct" | "qr";
 
 type Product = {
   id: string;
@@ -36,6 +49,7 @@ const PaymentLinksCreatePage = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const navigate = useNavigate();
+  const { currencies } = useCurrency();
 
   const [loading, setLoading] = useState(true);
   const [merchantUserId, setMerchantUserId] = useState("");
@@ -72,7 +86,13 @@ const PaymentLinksCreatePage = () => {
 
   const [creating, setCreating] = useState(false);
   const [createdUrl, setCreatedUrl] = useState("");
+  const [shareLinkTitle, setShareLinkTitle] = useState("OpenPay Payment");
+  const [shareTab, setShareTab] = useState<ShareTab>("button");
+  const [buttonStyle, setButtonStyle] = useState<"default" | "soft" | "dark">("default");
+  const [buttonSize, setButtonSize] = useState<"small" | "medium" | "large">("medium");
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [pendingDeleteLink, setPendingDeleteLink] = useState<PaymentLinkRow | null>(null);
 
   const loadPaymentLinks = async (userId: string) => {
     const { data } = await db
@@ -126,6 +146,22 @@ const PaymentLinksCreatePage = () => {
     () => products.filter((p) => p.currency.toUpperCase() === currency.toUpperCase() && p.is_active),
     [products, currency],
   );
+  const currencyChoices = useMemo(() => {
+    const map = new Map<string, { code: string; name: string; flag: string }>();
+    currencies.forEach((item) => {
+      const code = (item.code || "").toUpperCase();
+      if (code.length !== 3 || map.has(code)) return;
+      map.set(code, { code, name: item.name || code, flag: item.flag || "PI" });
+    });
+    const list = Array.from(map.values());
+    list.sort((a, b) => {
+      if (a.code === "PI") return -1;
+      if (b.code === "PI") return 1;
+      return a.code.localeCompare(b.code);
+    });
+    return list;
+  }, [currencies]);
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
 
   const previewTotal = useMemo(() => {
     if (type === "custom_amount") return Number(customAmount || 0);
@@ -162,6 +198,73 @@ const PaymentLinksCreatePage = () => {
       return `${link.currency} ${Number(link.custom_amount || 0).toFixed(2)} one-time`;
     }
     return `${link.currency} variable amount`;
+  };
+
+  const escapeHtml = (value: string) =>
+    String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const shareButtonHtmlCode = useMemo(
+    () =>
+      `<a href="${createdUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:8px;background:${buttonStyle === "dark" ? "#0b1f3b" : buttonStyle === "soft" ? "#4b7dd1" : "#0057d8"};color:#fff;padding:${buttonSize === "small" ? "8px 16px" : buttonSize === "large" ? "14px 28px" : "12px 24px"};border-radius:10px;text-decoration:none;font-weight:700;font-family:Arial,sans-serif"><img src="/openpay-o.svg" alt="OpenPay" width="16" height="16" style="display:block;border-radius:999px" />Pay with OpenPay</a>`,
+    [createdUrl, buttonStyle, buttonSize],
+  );
+  const shareButtonBg = useMemo(
+    () => (buttonStyle === "dark" ? "#0b1f3b" : buttonStyle === "soft" ? "#4b7dd1" : "#0057d8"),
+    [buttonStyle],
+  );
+  const shareButtonPadding = useMemo(
+    () => (buttonSize === "small" ? "8px 16px" : buttonSize === "large" ? "14px 28px" : "12px 24px"),
+    [buttonSize],
+  );
+  const qrImageSettings = useMemo(
+    () => ({
+      src: "/openpay-o.svg",
+      width: 42,
+      height: 42,
+      excavate: true,
+    }),
+    [],
+  );
+
+  const shareButtonReactCode = useMemo(
+    () =>
+      `export default function OpenPayButton() {\n  return (\n    <a\n      href="${createdUrl}"\n      target="_blank"\n      rel="noopener noreferrer"\n      style={{\n        display: "inline-flex",\n        alignItems: "center",\n        gap: "8px",\n        background: "${buttonStyle === "dark" ? "#0b1f3b" : buttonStyle === "soft" ? "#4b7dd1" : "#0057d8"}",\n        color: "#fff",\n        padding: "${buttonSize === "small" ? "8px 16px" : buttonSize === "large" ? "14px 28px" : "12px 24px"}",\n        borderRadius: "10px",\n        textDecoration: "none",\n        fontWeight: 700,\n      }}\n    >\n      <img src="/openpay-o.svg" alt="OpenPay" width={16} height={16} style={{ borderRadius: 999 }} />\n      Pay with OpenPay\n    </a>\n  );\n}`,
+    [createdUrl, buttonStyle, buttonSize],
+  );
+
+  const shareWidgetHtmlCode = useMemo(
+    () =>
+      `<!doctype html>\n<html>\n  <body style="margin:0;padding:24px;font-family:Arial,sans-serif;background:#f8fbff">\n    <div style="max-width:360px;margin:0 auto;border:1px solid #d9e6ff;border-radius:16px;padding:20px;background:#fff">\n      <p style="margin:0;color:#5c6b82;font-size:12px;letter-spacing:.08em;text-transform:uppercase">OpenPay</p>\n      <h3 style="margin:8px 0 0;font-size:24px;color:#10213a">${escapeHtml(shareLinkTitle || "OpenPay Payment")}</h3>\n      <p style="margin:8px 0 16px;color:#5c6b82;font-size:14px">Secure checkout powered by OpenPay</p>\n      <a href="${createdUrl}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;background:#0057d8;color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700">Pay now</a>\n    </div>\n  </body>\n</html>`,
+    [createdUrl, shareLinkTitle],
+  );
+
+  const shareIframeCode = useMemo(
+    () =>
+      `<iframe src="${createdUrl}" width="100%" height="720" frameborder="0" style="border:1px solid #d9e6ff;border-radius:12px;max-width:560px;" allow="payment *"></iframe>`,
+    [createdUrl],
+  );
+
+  const downloadQrCode = () => {
+    const sourceCanvas = document.getElementById("payment-link-share-qr-download-source") as HTMLCanvasElement | null;
+    if (!sourceCanvas) {
+      toast.error("QR image not ready");
+      return;
+    }
+    const dataUrl = sourceCanvas.toDataURL("image/png");
+    const safeName = (shareLinkTitle || "openpay-payment-link")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `${safeName || "openpay"}-qr.png`;
+    link.click();
+    toast.success("QR download started");
   };
 
   const createLink = async () => {
@@ -218,12 +321,31 @@ const PaymentLinksCreatePage = () => {
 
     const url = formatLinkUrl(token);
     setCreatedUrl(url);
+    setShareLinkTitle(title || "OpenPay Payment");
+    setShareTab("button");
+    setButtonStyle("default");
+    setButtonSize("medium");
     setShowCreateForm(false);
     setShareModalOpen(true);
     toast.success("Payment link created");
     if (merchantUserId) {
       await loadPaymentLinks(merchantUserId);
     }
+  };
+
+  const deletePaymentLink = async () => {
+    if (!pendingDeleteLink) return;
+    const { data, error } = await db.rpc("delete_my_merchant_payment_link", { p_link_id: pendingDeleteLink.id });
+    if (error || !data) {
+      toast.error(error?.message || "Failed to delete payment link");
+      return;
+    }
+    if (merchantUserId) {
+      await loadPaymentLinks(merchantUserId);
+    }
+    setDeleteModalOpen(false);
+    setPendingDeleteLink(null);
+    toast.success("Payment link deleted");
   };
 
   if (loading) {
@@ -246,13 +368,19 @@ const PaymentLinksCreatePage = () => {
               </button>
               <p className="text-lg font-semibold text-foreground">Create payment link</p>
             </div>
-            <Button
-              onClick={createLink}
-              disabled={creating}
-              className="h-10 rounded-full bg-paypal-blue px-5 text-white hover:bg-[#004dc5]"
-            >
-              {creating ? "Creating..." : "Create payment link"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => navigate("/openpay-api-docs")}>
+                <FileText className="mr-1 h-4 w-4" />
+                API docs
+              </Button>
+              <Button
+                onClick={createLink}
+                disabled={creating}
+                className="h-10 rounded-full bg-paypal-blue px-5 text-white hover:bg-[#004dc5]"
+              >
+                {creating ? "Creating..." : "Create payment link"}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -381,7 +509,17 @@ const PaymentLinksCreatePage = () => {
                         <option value="sandbox">sandbox</option>
                         <option value="live">live</option>
                       </select>
-                      <Input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} className="h-12 rounded-xl" placeholder="USD" />
+                      <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                        className="h-12 rounded-xl border border-border bg-background px-3 text-sm"
+                      >
+                        {currencyChoices.map((item) => (
+                          <option key={item.code} value={item.code}>
+                            {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                          </option>
+                        ))}
+                      </select>
                       <Input value={secretKey} onChange={(e) => setSecretKey(e.target.value)} className="h-12 rounded-xl col-span-2" placeholder={`osk_${mode}_...`} />
                     </div>
 
@@ -546,6 +684,15 @@ const PaymentLinksCreatePage = () => {
                     Main menu
                   </button>
                   <button
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
+                    onClick={() => {
+                      setShowMenuSelection(false);
+                      navigate("/openpay-api-docs");
+                    }}
+                  >
+                    API docs
+                  </button>
+                  <button
                     className="w-full rounded-lg bg-secondary px-3 py-2 text-left text-sm font-medium text-foreground"
                     onClick={() => setShowMenuSelection(false)}
                   >
@@ -562,6 +709,13 @@ const PaymentLinksCreatePage = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              className="paypal-surface rounded-full p-2 text-foreground"
+              aria-label="API docs"
+              onClick={() => navigate("/openpay-api-docs")}
+            >
+              <FileText className="h-5 w-5" />
+            </button>
             <button
               className="paypal-surface rounded-full p-2 text-foreground"
               aria-label="Messages"
@@ -616,11 +770,24 @@ const PaymentLinksCreatePage = () => {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => {
+                        setCreatedUrl(checkoutUrl);
+                        setShareLinkTitle(link.title || "OpenPay Payment");
+                        setShareTab("button");
+                        setShareModalOpen(true);
+                      }}
+                      className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
+                      aria-label="Open share tools"
+                    >
+                      <Link2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleCopy(checkoutUrl, "Payment link")}
                       className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
                       aria-label="Copy payment link"
                     >
-                      <Link2 className="h-4 w-4" />
+                      <Copy className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
@@ -632,10 +799,14 @@ const PaymentLinksCreatePage = () => {
                     </button>
                     <button
                       type="button"
+                      onClick={() => {
+                        setPendingDeleteLink(link);
+                        setDeleteModalOpen(true);
+                      }}
                       className="rounded p-1.5 text-muted-foreground hover:bg-secondary"
-                      aria-label="More actions"
+                      aria-label="Delete payment link"
                     >
-                      <MoreHorizontal className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -652,7 +823,7 @@ const PaymentLinksCreatePage = () => {
 
       {shareModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4">
-          <div className="w-full max-w-xl rounded-3xl bg-background p-5 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-background p-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-semibold text-foreground">Created! Share payment link</h2>
               <button
@@ -667,19 +838,197 @@ const PaymentLinksCreatePage = () => {
             <p className="mt-2 text-sm text-muted-foreground">
               Share this link to collect payments with OpenPay virtual card checkout.
             </p>
-            <div className="mt-4 flex items-center gap-2 rounded-full border border-border bg-secondary/40 px-3 py-2">
-              <p className="flex-1 truncate text-sm text-foreground">{createdUrl}</p>
-              <Button
-                className="h-9 rounded-full bg-paypal-blue px-4 text-white hover:bg-[#004dc5]"
-                onClick={() => void handleCopy(createdUrl, "Payment link")}
-              >
-                <Copy className="mr-1 h-4 w-4" />
-                Copy link
-              </Button>
+
+            <div className="mt-4 flex flex-wrap gap-2 rounded-xl border border-border bg-secondary/30 p-1">
+              {([
+                ["button", "Button"],
+                ["widget", "Widget"],
+                ["iframe", "iFrame"],
+                ["direct", "Direct link"],
+                ["qr", "QR code"],
+              ] as Array<[ShareTab, string]>).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setShareTab(key)}
+                  className={`rounded-lg px-3 py-2 text-sm ${shareTab === key ? "bg-white font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
+
+            {shareTab === "button" && (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl border border-border p-3">
+                  <p className="text-sm font-semibold text-foreground">HTML Button Code</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Paste this into your website HTML.</p>
+                  <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{shareButtonHtmlCode}</code></pre>
+                  <Button className="mt-2 h-9 rounded-full bg-paypal-blue px-4 text-white hover:bg-[#004dc5]" onClick={() => void handleCopy(shareButtonHtmlCode, "HTML button code")}>
+                    <Copy className="mr-1 h-4 w-4" />
+                    Copy
+                  </Button>
+                </div>
+                <div className="rounded-2xl border border-border p-3">
+                  <p className="text-sm font-semibold text-foreground">React Component</p>
+                  <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{shareButtonReactCode}</code></pre>
+                  <Button className="mt-2 h-9 rounded-full bg-paypal-blue px-4 text-white hover:bg-[#004dc5]" onClick={() => void handleCopy(shareButtonReactCode, "React button code")}>
+                    <Copy className="mr-1 h-4 w-4" />
+                    Copy
+                  </Button>
+                </div>
+                <div className="rounded-2xl border border-border p-3">
+                  <p className="text-sm font-semibold text-foreground">Preview</p>
+                  <div className="mt-2 rounded-xl bg-secondary/30 p-6 text-center">
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        background: shareButtonBg,
+                        color: "#fff",
+                        padding: shareButtonPadding,
+                        borderRadius: "10px",
+                        textDecoration: "none",
+                        fontWeight: 700,
+                        fontFamily: "Arial,sans-serif",
+                      }}
+                    >
+                      <BrandLogo className="h-4 w-4" />
+                      Pay with OpenPay
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {shareTab === "widget" && (
+              <div className="mt-4 rounded-2xl border border-border p-3">
+                <p className="text-sm font-semibold text-foreground">Complete Widget</p>
+                <p className="mt-1 text-xs text-muted-foreground">Full embeddable widget page for websites/apps.</p>
+                <pre className="mt-2 max-h-72 overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{shareWidgetHtmlCode}</code></pre>
+                <Button className="mt-2 h-9 rounded-full bg-paypal-blue px-4 text-white hover:bg-[#004dc5]" onClick={() => void handleCopy(shareWidgetHtmlCode, "Widget code")}>
+                  <Copy className="mr-1 h-4 w-4" />
+                  Copy
+                </Button>
+                <div className="mt-3 rounded-xl bg-secondary/20 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
+                  <div className="mx-auto mt-2 max-w-sm rounded-xl border border-border bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                      <BrandLogo className="h-5 w-5" />
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Pay link</p>
+                    <p className="text-xl font-semibold text-foreground">{shareLinkTitle || "OpenPay Payment"}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Secure checkout powered by OpenPay</p>
+                    <button className="mt-4 h-10 w-full rounded-full bg-paypal-blue text-sm font-semibold text-white">
+                      Pay now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {shareTab === "iframe" && (
+              <div className="mt-4 rounded-2xl border border-border p-3">
+                <p className="text-sm font-semibold text-foreground">iFrame Embed</p>
+                <p className="mt-1 text-xs text-muted-foreground">Embed OpenPay checkout directly in your site.</p>
+                <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100"><code>{shareIframeCode}</code></pre>
+                <Button className="mt-2 h-9 rounded-full bg-paypal-blue px-4 text-white hover:bg-[#004dc5]" onClick={() => void handleCopy(shareIframeCode, "iFrame code")}>
+                  <Copy className="mr-1 h-4 w-4" />
+                  Copy
+                </Button>
+                <div className="mt-3 rounded-xl border border-border bg-white p-2">
+                  <p className="px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
+                  <iframe
+                    src={createdUrl}
+                    title="OpenPay iFrame preview"
+                    className="h-[440px] w-full rounded-lg border border-border"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+            )}
+
+            {shareTab === "direct" && (
+              <div className="mt-4 rounded-2xl border border-border p-3">
+                <p className="text-sm font-semibold text-foreground">Direct Payment Link</p>
+                <div className="mt-2 flex items-center gap-2 rounded-full border border-border bg-secondary/40 px-3 py-2">
+                  <p className="flex-1 truncate text-sm text-foreground">{createdUrl}</p>
+                  <Button className="h-9 rounded-full bg-paypal-blue px-4 text-white hover:bg-[#004dc5]" onClick={() => void handleCopy(createdUrl, "Payment link")}>
+                    <Copy className="mr-1 h-4 w-4" />
+                    Copy link
+                  </Button>
+                  <Button variant="outline" className="h-9 rounded-full px-4" onClick={() => window.open(createdUrl, "_blank")}>
+                    Open
+                  </Button>
+                </div>
+                <div className="mt-3 rounded-xl bg-secondary/20 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
+                  <div className="mt-2 rounded-xl border border-border bg-white p-4">
+                    <p className="text-sm text-muted-foreground">Share this direct link in chat, app, social media, or website.</p>
+                    <a
+                      href={createdUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex rounded-full bg-paypal-blue px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Open payment page
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {shareTab === "qr" && (
+              <div className="mt-4 rounded-2xl border border-border p-3">
+                <p className="text-sm font-semibold text-foreground">QR Code</p>
+                <p className="mt-1 text-xs text-muted-foreground">Customers can scan to pay instantly.</p>
+                <div className="mt-3 flex justify-center rounded-xl bg-white p-4">
+                  <QRCodeSVG value={createdUrl} size={240} includeMargin imageSettings={qrImageSettings} level="H" />
+                </div>
+                <div className="mt-2 hidden">
+                  <QRCodeCanvas
+                    id="payment-link-share-qr-download-source"
+                    value={createdUrl}
+                    size={720}
+                    includeMargin
+                    imageSettings={{
+                      ...qrImageSettings,
+                      width: 120,
+                      height: 120,
+                    }}
+                    level="H"
+                  />
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button className="h-9 rounded-full bg-paypal-blue px-4 text-white hover:bg-[#004dc5]" onClick={downloadQrCode}>
+                    Download QR
+                  </Button>
+                  <Button variant="outline" className="h-9 rounded-full px-4" onClick={() => void handleCopy(createdUrl, "Payment link")}>
+                    Copy link
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      <AlertDialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Payment Link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete `{pendingDeleteLink?.title || "OpenPay Payment"}`. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingDeleteLink(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deletePaymentLink}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
