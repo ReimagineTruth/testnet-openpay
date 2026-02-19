@@ -20,6 +20,24 @@ interface TransactionReceiptProps {
   receipt: ReceiptData | null;
 }
 
+const toPreviewText = (value: string, max = 60) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const shortenToken = (token: string, keepStart = 10, keepEnd = 6) => {
+    if (token.length <= keepStart + keepEnd + 3) return token;
+    return `${token.slice(0, keepStart)}...${token.slice(-keepEnd)}`;
+  };
+
+  const tokenShortened = raw
+    .replace(/\bopsess_[a-zA-Z0-9_-]+\b/g, (m) => shortenToken(m))
+    .replace(/\boplink_[a-zA-Z0-9_-]+\b/g, (m) => shortenToken(m))
+    .replace(/\bhttps?:\/\/[^\s]+/gi, (m) => shortenToken(m, 22, 10));
+
+  if (tokenShortened.length <= max) return tokenShortened;
+  return `${tokenShortened.slice(0, max - 3)}...`;
+};
+
 const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptProps) => {
   const { format: formatCurrency } = useCurrency();
 
@@ -27,6 +45,10 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
 
   const typeLabel =
     receipt.type === "topup" ? "Top Up" : receipt.type === "send" ? "Payment Sent" : "Payment Received";
+  const transactionIdPreview =
+    receipt.transactionId.length > 18
+      ? `${receipt.transactionId.slice(0, 10)}...${receipt.transactionId.slice(-6)}`
+      : receipt.transactionId;
 
   const handleSave = () => {
     const text = [
@@ -75,7 +97,7 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Transaction ID</span>
-            <span className="text-foreground font-mono text-xs">{receipt.transactionId.slice(0, 12)}...</span>
+            <span className="text-foreground font-mono text-xs">{transactionIdPreview}</span>
           </div>
           {receipt.otherPartyName && (
             <div className="flex justify-between text-sm">
@@ -92,7 +114,7 @@ const TransactionReceipt = ({ open, onOpenChange, receipt }: TransactionReceiptP
           {receipt.note && (
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Note</span>
-              <span className="text-foreground">{receipt.note}</span>
+              <span className="max-w-[70%] text-right text-foreground break-words">{toPreviewText(receipt.note)}</span>
             </div>
           )}
 

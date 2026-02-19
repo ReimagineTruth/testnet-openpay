@@ -18,6 +18,24 @@ interface Transaction {
   is_topup?: boolean;
 }
 
+const toPreviewText = (value: string, max = 68) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const shortenToken = (token: string, keepStart = 10, keepEnd = 6) => {
+    if (token.length <= keepStart + keepEnd + 3) return token;
+    return `${token.slice(0, keepStart)}...${token.slice(-keepEnd)}`;
+  };
+
+  const tokenShortened = raw
+    .replace(/\bopsess_[a-zA-Z0-9_-]+\b/g, (m) => shortenToken(m))
+    .replace(/\boplink_[a-zA-Z0-9_-]+\b/g, (m) => shortenToken(m))
+    .replace(/\bhttps?:\/\/[^\s]+/gi, (m) => shortenToken(m, 22, 10));
+
+  if (tokenShortened.length <= max) return tokenShortened;
+  return `${tokenShortened.slice(0, max - 3)}...`;
+};
+
 const ActivityPage = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const navigate = useNavigate();
@@ -102,7 +120,7 @@ const ActivityPage = () => {
                   <p className="text-xs text-muted-foreground">
                     {tx.is_topup ? "Top up" : tx.is_sent ? "Payment" : "Received"}
                   </p>
-                  {tx.note && <p className="text-xs text-muted-foreground">{tx.note}</p>}
+                  {tx.note && <p className="text-xs text-muted-foreground">{toPreviewText(tx.note)}</p>}
                 </div>
               </div>
               <p className={`font-semibold ${tx.is_sent && !tx.is_topup ? "text-red-500" : "text-paypal-success"}`}>
