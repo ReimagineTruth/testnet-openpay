@@ -113,6 +113,7 @@ const AppRoutes = () => {
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/merchant-onboarding" element={<MerchantOnboardingPage />} />
         <Route path="/payment-links/create" element={<PaymentLinksCreatePage />} />
+        <Route path="/payment-link/:token" element={<MerchantCheckoutPage />} />
         <Route path="/merchant-checkout" element={<MerchantCheckoutPage />} />
         <Route path="/virtual-card" element={<VirtualCardPage />} />
         <Route path="/remittance-merchant" element={<RemittanceMerchantPage />} />

@@ -45,6 +45,12 @@ const SendMoney = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currencies, currency, setCurrency, format: formatCurrency } = useCurrency();
+  const checkoutSessionToken = searchParams.get("checkout_session") || "";
+  const formatShortText = (value: string, head = 28, tail = 18) => {
+    const cleaned = value.trim();
+    if (cleaned.length <= head + tail + 3) return cleaned;
+    return `${cleaned.slice(0, head)}...${cleaned.slice(-tail)}`;
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -256,6 +262,17 @@ const SendMoney = () => {
       txId = (data as { transaction_id?: string } | null)?.transaction_id || "";
     }
 
+    if (checkoutSessionToken && txId) {
+      const { error: completeError } = await (supabase as any).rpc("complete_merchant_checkout_with_transaction", {
+        p_session_token: checkoutSessionToken,
+        p_transaction_id: txId,
+        p_note: "Completed via OpenPay wallet /send flow",
+      });
+      if (completeError) {
+        toast.error(`Payment sent, but checkout completion failed: ${completeError.message}`);
+      }
+    }
+
     setLoading(false);
     setReceiptData({
       transactionId: txId,
@@ -395,7 +412,7 @@ const SendMoney = () => {
               {note.trim() && (
                 <p className="flex items-start justify-between gap-2">
                   <span className="text-muted-foreground">Note</span>
-                  <span className="max-w-[70%] text-right text-foreground">{note.trim()}</span>
+                  <span className="max-w-[70%] break-all text-right text-foreground">{formatShortText(note.trim())}</span>
                 </p>
               )}
             </div>

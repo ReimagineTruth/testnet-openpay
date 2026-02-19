@@ -65,6 +65,7 @@ const QrScannerPage = () => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const handlingDecodeRef = useRef(false);
+  const lastInvalidToastAtRef = useRef(0);
 
   const returnTo = useMemo(() => {
     const requested = searchParams.get("returnTo") || "/send";
@@ -101,37 +102,45 @@ const QrScannerPage = () => {
     if (handlingDecodeRef.current) return;
     handlingDecodeRef.current = true;
 
-    const payload = extractQrPayload(decodedText);
-    await stopScanner();
-    let recipientId = payload.uid;
-    if (!recipientId && payload.username) {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id")
-        .ilike("username", payload.username)
-        .limit(1)
-        .maybeSingle();
-      recipientId = data?.id || null;
-    }
+    try {
+      const payload = extractQrPayload(decodedText);
+      let recipientId = payload.uid;
+      if (!recipientId && payload.username) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id")
+          .ilike("username", payload.username)
+          .limit(1)
+          .maybeSingle();
+        recipientId = data?.id || null;
+      }
 
-    if (!recipientId) {
-      toast.error("Invalid QR code");
+      if (!recipientId) {
+        const now = Date.now();
+        if (now - lastInvalidToastAtRef.current > 1800) {
+          toast.error("Invalid QR code");
+          lastInvalidToastAtRef.current = now;
+        }
+        handlingDecodeRef.current = false;
+        return;
+      }
+
+      const params = new URLSearchParams({ to: recipientId });
+      if (payload.amount && Number.isFinite(Number(payload.amount)) && Number(payload.amount) > 0) {
+        params.set("amount", Number(payload.amount).toFixed(2));
+      }
+      if (payload.currency) {
+        params.set("currency", payload.currency);
+      }
+      if (payload.note) {
+        params.set("note", payload.note);
+      }
+
+      await stopScanner();
+      navigate(`${returnTo}?${params.toString()}`, { replace: true });
+    } finally {
       handlingDecodeRef.current = false;
-      return;
     }
-
-    const params = new URLSearchParams({ to: recipientId });
-    if (payload.amount && Number.isFinite(Number(payload.amount)) && Number(payload.amount) > 0) {
-      params.set("amount", Number(payload.amount).toFixed(2));
-    }
-    if (payload.currency) {
-      params.set("currency", payload.currency);
-    }
-    if (payload.note) {
-      params.set("note", payload.note);
-    }
-
-    navigate(`${returnTo}?${params.toString()}`, { replace: true });
   };
 
   useEffect(() => {
@@ -192,14 +201,9 @@ const QrScannerPage = () => {
         sources.push({ facingMode: "user" });
 
         const scanConfig = {
-          fps: 12,
+          fps: 18,
           disableFlip: false,
           formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const box = Math.max(180, Math.floor(minEdge * 0.68));
-            return { width: box, height: box };
-          },
         };
 
         let started = false;
@@ -304,7 +308,8 @@ const QrScannerPage = () => {
           }
           #openpay-full-scanner__scan_region img,
           #openpay-full-scanner__scan_region canvas {
-            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
           }
           #openpay-full-scanner__dashboard {
             display: none !important;

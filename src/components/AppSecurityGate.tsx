@@ -51,6 +51,12 @@ const AppSecurityGate = () => {
     if (location.pathname.startsWith("/admin")) return true;
     return PUBLIC_PATHS.has(location.pathname);
   }, [location.pathname]);
+  const timeGreeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  }, []);
 
   useEffect(() => {
     const check = async () => {
@@ -184,7 +190,7 @@ const AppSecurityGate = () => {
             <BrandLogo className="h-10 w-10" />
             <h1 className="text-4xl font-bold tracking-tight">OpenPay</h1>
           </div>
-          <p className="mt-6 text-4xl font-semibold">Good Day!</p>
+          <p className="mt-6 text-4xl font-semibold">{timeGreeting}</p>
           <div className="mx-auto mt-4 flex h-12 w-full max-w-xs items-center justify-center rounded-full border border-white/20 bg-paypal-dark/25 px-4 shadow-inner shadow-paypal-dark/35">
             <p className="truncate text-2xl font-semibold tracking-wide">{accountLabel}</p>
           </div>

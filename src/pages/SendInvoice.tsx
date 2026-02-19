@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
+import { Info } from "lucide-react";
 
 interface Profile {
   id: string;
@@ -41,6 +42,8 @@ const SendInvoice = () => {
   const [dueDate, setDueDate] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [accountLookupResult, setAccountLookupResult] = useState<Profile | null>(null);
+  const [accountLookupLoading, setAccountLookupLoading] = useState(false);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -75,11 +78,50 @@ const SendInvoice = () => {
     loadData();
   }, []);
 
-  const filteredProfiles = search
-    ? profiles.filter((p) =>
-      p.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.username && p.username.toLowerCase().includes(search.toLowerCase())))
+  const normalizedSearch = search.trim().toLowerCase();
+  const normalizedSearchRaw = search.trim();
+  const isAccountNumberSearch = normalizedSearchRaw.toUpperCase().startsWith("OP");
+  const normalizedUsernameSearch = normalizedSearch.startsWith("@")
+    ? normalizedSearch.slice(1)
+    : normalizedSearch;
+
+  const filteredProfiles = normalizedSearch
+    ? profiles.filter((p) => {
+      const fullName = p.full_name.toLowerCase();
+      const username = (p.username || "").toLowerCase();
+      return (
+        fullName.includes(normalizedSearch) ||
+        username.includes(normalizedSearch) ||
+        (normalizedUsernameSearch.length > 0 && username.includes(normalizedUsernameSearch))
+      );
+    })
     : profiles;
+  const filteredWithoutAccountMatch = accountLookupResult
+    ? filteredProfiles.filter((profile) => profile.id !== accountLookupResult.id)
+    : filteredProfiles;
+
+  useEffect(() => {
+    const lookup = async () => {
+      if (!isAccountNumberSearch || normalizedSearchRaw.length < 8) {
+        setAccountLookupResult(null);
+        setAccountLookupLoading(false);
+        return;
+      }
+      setAccountLookupLoading(true);
+      const { data, error } = await supabase.rpc("find_user_by_account_number", {
+        p_account_number: normalizedSearchRaw.toUpperCase(),
+      });
+      if (error) {
+        setAccountLookupResult(null);
+        setAccountLookupLoading(false);
+        return;
+      }
+      const row = (data as Profile[] | null)?.[0] || null;
+      setAccountLookupResult(row);
+      setAccountLookupLoading(false);
+    };
+    void lookup();
+  }, [isAccountNumberSearch, normalizedSearchRaw]);
 
   const received = invoices.filter((i) => i.recipient_id === userId);
   const sent = invoices.filter((i) => i.sender_id === userId);
@@ -166,7 +208,7 @@ const SendInvoice = () => {
         <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
           <h2 className="font-semibold text-foreground">Create invoice</h2>
           <Input
-            placeholder="Search person by name or username"
+            placeholder="Search person by name, username, email, or account number"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -199,7 +241,32 @@ const SendInvoice = () => {
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Select recipient</p>
                 <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-border">
-                  {filteredProfiles.map((p) => (
+                  {isAccountNumberSearch && accountLookupLoading && (
+                    <p className="border-b border-border px-3 py-2 text-sm text-muted-foreground">Searching account number...</p>
+                  )}
+                  {isAccountNumberSearch && !accountLookupLoading && accountLookupResult && (
+                    <button
+                      onClick={() => { setRecipientId(accountLookupResult.id); setSelectedRecipient(accountLookupResult); }}
+                      className="w-full border-b border-border px-3 py-2 text-left hover:bg-muted"
+                    >
+                      <div className="flex items-center gap-2">
+                        {accountLookupResult.avatar_url ? (
+                          <img src={accountLookupResult.avatar_url} alt={accountLookupResult.full_name} className="h-9 w-9 rounded-full border border-border object-cover" />
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                            {accountLookupResult.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">{accountLookupResult.full_name}</p>
+                          {accountLookupResult.username && <p className="text-sm text-muted-foreground">@{accountLookupResult.username}</p>}
+                          <p className="text-xs text-muted-foreground">Matched by account number</p>
+                        </div>
+                        <Info className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </button>
+                  )}
+                  {filteredWithoutAccountMatch.map((p) => (
                     <button
                       key={p.id}
                       onClick={() => { setRecipientId(p.id); setSelectedRecipient(p); }}
@@ -220,7 +287,7 @@ const SendInvoice = () => {
                       </div>
                     </button>
                   ))}
-                  {filteredProfiles.length === 0 && (
+                  {filteredWithoutAccountMatch.length === 0 && !accountLookupResult && !accountLookupLoading && (
                     <p className="px-3 py-4 text-sm text-muted-foreground">No users found</p>
                   )}
                 </div>

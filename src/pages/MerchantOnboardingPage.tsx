@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import BrandLogo from "@/components/BrandLogo";
 import SplashScreen from "@/components/SplashScreen";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 type PortalView = "home" | "balances" | "transactions" | "customers" | "products" | "api_keys" | "checkout" | "analytics";
 type Mode = "sandbox" | "live";
@@ -15,8 +16,21 @@ type Mode = "sandbox" | "live";
 type MerchantProfile = { user_id: string; merchant_name: string; merchant_username: string; merchant_logo_url: string | null; default_currency: string };
 type MerchantApiKey = { id: string; key_mode: Mode; key_name: string; publishable_key: string; secret_key_last4: string; is_active: boolean; created_at: string };
 type MerchantProduct = { id: string; product_code: string; product_name: string; product_description: string; unit_amount: number; currency: string; is_active: boolean };
-type MerchantPayment = { id: string; buyer_user_id: string; transaction_id: string; amount: number; currency: string; key_mode: Mode; status: string; created_at: string };
-type MerchantSession = { id: string; session_token: string; status: string; key_mode: Mode; currency: string; total_amount: number; created_at: string };
+type MerchantPayment = {
+  id: string;
+  session_id: string;
+  buyer_user_id: string;
+  transaction_id: string;
+  amount: number;
+  currency: string;
+  api_key_id: string | null;
+  key_mode: Mode;
+  payment_link_id: string | null;
+  payment_link_token: string | null;
+  status: string;
+  created_at: string;
+};
+type MerchantSession = { id: string; session_token: string; status: string; key_mode: Mode; currency: string; total_amount: number; customer_name: string | null; customer_email: string | null; created_at: string };
 
 type CustomerProfile = { id: string; full_name: string; username: string | null };
 
@@ -35,6 +49,7 @@ const MerchantOnboardingPage = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const navigate = useNavigate();
+  const { currencies } = useCurrency();
 
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -64,6 +79,7 @@ const MerchantOnboardingPage = () => {
   const [payments, setPayments] = useState<MerchantPayment[]>([]);
   const [sessions, setSessions] = useState<MerchantSession[]>([]);
   const [customersById, setCustomersById] = useState<Record<string, CustomerProfile>>({});
+  const [walletBalance, setWalletBalance] = useState(0);
 
   const [selectedQty, setSelectedQty] = useState<Record<string, number>>({});
   const [checkoutCurrency, setCheckoutCurrency] = useState("USD");
@@ -72,6 +88,28 @@ const MerchantOnboardingPage = () => {
   const [checkoutUrl, setCheckoutUrl] = useState("");
 
   const modeProducts = useMemo(() => products.filter((p) => p.currency.toUpperCase() === checkoutCurrency.toUpperCase() && p.is_active), [products, checkoutCurrency]);
+  const sessionsById = useMemo(() => {
+    const map: Record<string, MerchantSession> = {};
+    sessions.forEach((session) => {
+      map[session.id] = session;
+    });
+    return map;
+  }, [sessions]);
+  const currencyOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list = currencies
+      .map((item) => (item.code || "").toUpperCase())
+      .filter((code) => code.length === 3 && !seen.has(code) && seen.add(code));
+    if (!list.includes("USD")) list.unshift("USD");
+    return list;
+  }, [currencies]);
+  const apiKeysById = useMemo(() => {
+    const map: Record<string, MerchantApiKey> = {};
+    apiKeys.forEach((key) => {
+      map[key.id] = key;
+    });
+    return map;
+  }, [apiKeys]);
   const modePayments = useMemo(() => payments.filter((p) => p.key_mode === mode).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)), [payments, mode]);
   const modeSessions = useMemo(() => sessions.filter((s) => s.key_mode === mode).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)), [sessions, mode]);
   const uniqueCustomers = useMemo(() => Array.from(new Set(modePayments.map((p) => p.buyer_user_id).filter(Boolean))), [modePayments]);
@@ -97,12 +135,13 @@ const MerchantOnboardingPage = () => {
   }, [modeProducts, selectedQty]);
 
   const loadPortal = async (uid: string) => {
-    const [{ data: profile }, { data: keyRows }, { data: productRows }, { data: paymentRows }, { data: sessionRows }] = await Promise.all([
+    const [{ data: profile }, { data: keyRows }, { data: productRows }, { data: paymentRows }, { data: sessionRows }, { data: walletRow }] = await Promise.all([
       db.from("merchant_profiles").select("user_id, merchant_name, merchant_username, merchant_logo_url, default_currency").eq("user_id", uid).maybeSingle(),
       db.from("merchant_api_keys").select("id, key_mode, key_name, publishable_key, secret_key_last4, is_active, created_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
       db.from("merchant_products").select("id, product_code, product_name, product_description, unit_amount, currency, is_active").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
-      db.from("merchant_payments").select("id, buyer_user_id, transaction_id, amount, currency, key_mode, status, created_at").eq("merchant_user_id", uid),
-      db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, created_at").eq("merchant_user_id", uid),
+      db.from("merchant_payments").select("id, session_id, buyer_user_id, transaction_id, amount, currency, api_key_id, key_mode, payment_link_id, payment_link_token, status, created_at").eq("merchant_user_id", uid),
+      db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, customer_name, customer_email, created_at").eq("merchant_user_id", uid),
+      db.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
     ]);
 
     if (profile) {
@@ -119,6 +158,7 @@ const MerchantOnboardingPage = () => {
     setProducts((productRows || []) as MerchantProduct[]);
     setPayments((paymentRows || []) as MerchantPayment[]);
     setSessions((sessionRows || []) as MerchantSession[]);
+    setWalletBalance(Number(walletRow?.balance || 0));
   };
 
   useEffect(() => {
@@ -330,10 +370,11 @@ const MerchantOnboardingPage = () => {
             <div className="rounded-2xl border border-border bg-white p-5">
               <p className="text-sm text-muted-foreground">Today</p>
               <h2 className="mt-1 text-3xl font-bold text-slate-900">{modeLabel} overview</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Gross volume</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.gross.toFixed(2)}</p></div>
                 <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Available</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.available.toFixed(2)}</p></div>
                 <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Payments</p><p className="mt-1 text-xl font-bold">{kpis.total}</p></div>
+                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Wallet balance</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {walletBalance.toFixed(2)}</p></div>
               </div>
             </div>
             <div className="rounded-2xl border border-border bg-white p-5">
@@ -379,7 +420,22 @@ const MerchantOnboardingPage = () => {
         <div className="space-y-4">
           <div className="rounded-2xl border border-border bg-white p-5">
             <h3 className="text-2xl font-bold text-slate-900">Add a product</h3>
-            <div className="mt-4 grid gap-2 md:grid-cols-2"><Input value={productCode} onChange={(e) => setProductCode(e.target.value)} placeholder="Code" className="h-11 rounded-lg" /><Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="Name" className="h-11 rounded-lg" /><Input value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Description" className="h-11 rounded-lg md:col-span-2" /><Input value={productPrice} onChange={(e) => setProductPrice(e.target.value)} placeholder="Amount" className="h-11 rounded-lg" /><Input value={productCurrency} onChange={(e) => setProductCurrency(e.target.value.toUpperCase())} placeholder="Currency" className="h-11 rounded-lg" /><Button onClick={createProduct} disabled={creatingProduct} className="h-11 rounded-lg md:col-span-2"><Plus className="mr-2 h-4 w-4" />{creatingProduct ? "Adding..." : "Add product"}</Button></div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              <Input value={productCode} onChange={(e) => setProductCode(e.target.value)} placeholder="Code" className="h-11 rounded-lg" />
+              <Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="Name" className="h-11 rounded-lg" />
+              <Input value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Description" className="h-11 rounded-lg md:col-span-2" />
+              <Input value={productPrice} onChange={(e) => setProductPrice(e.target.value)} placeholder="Amount" className="h-11 rounded-lg" />
+              <select
+                value={productCurrency}
+                onChange={(e) => setProductCurrency(e.target.value.toUpperCase())}
+                className="h-11 rounded-lg border border-border bg-white px-3 text-sm"
+              >
+                {currencyOptions.map((code) => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+              </select>
+              <Button onClick={createProduct} disabled={creatingProduct} className="h-11 rounded-lg md:col-span-2"><Plus className="mr-2 h-4 w-4" />{creatingProduct ? "Adding..." : "Add product"}</Button>
+            </div>
           </div>
           <div className="rounded-2xl border border-border bg-white p-5 space-y-2">{products.map((p) => <div key={p.id} className="rounded-xl border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-900">{p.product_name}</p><p className="text-xs text-muted-foreground">{p.product_code} | {p.currency} {Number(p.unit_amount).toFixed(2)}</p></div><Button variant="outline" className="h-8 rounded-lg" onClick={() => toggleProductActive(p)}>{p.is_active ? "Set inactive" : "Set active"}</Button></div>{!!p.product_description && <p className="mt-1 text-sm text-muted-foreground">{p.product_description}</p>}</div>)}{!products.length && <p className="text-sm text-muted-foreground">No products yet.</p>}</div>
         </div>
@@ -392,7 +448,18 @@ const MerchantOnboardingPage = () => {
           <div className="rounded-2xl border border-border bg-white p-5">
             <h3 className="text-2xl font-bold text-slate-900">Create checkout link</h3>
             <Button variant="outline" className="mt-2 h-9 rounded-lg" onClick={() => navigate("/payment-links/create")}>Open advanced /payment-links/create</Button>
-            <div className="mt-4 grid gap-2 md:grid-cols-2"><Input value={checkoutCurrency} onChange={(e) => setCheckoutCurrency(e.target.value.toUpperCase())} placeholder="Currency" className="h-11 rounded-lg" /><Input value={checkoutSecretKey} onChange={(e) => setCheckoutSecretKey(e.target.value)} placeholder={`Paste osk_${mode}_...`} className="h-11 rounded-lg" /></div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              <select
+                value={checkoutCurrency}
+                onChange={(e) => setCheckoutCurrency(e.target.value.toUpperCase())}
+                className="h-11 rounded-lg border border-border bg-white px-3 text-sm"
+              >
+                {currencyOptions.map((code) => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+              </select>
+              <Input value={checkoutSecretKey} onChange={(e) => setCheckoutSecretKey(e.target.value)} placeholder={`Paste osk_${mode}_...`} className="h-11 rounded-lg" />
+            </div>
             <div className="mt-4 space-y-2">{modeProducts.map((p) => <div key={p.id} className="grid grid-cols-1 items-center gap-2 rounded-xl border border-border p-2 sm:grid-cols-[1fr_120px]"><p className="text-sm text-slate-900">{p.product_name} ({p.currency} {Number(p.unit_amount).toFixed(2)})</p><Input value={String(selectedQty[p.id] || "")} onChange={(e) => setSelectedQty((prev) => ({ ...prev, [p.id]: Number(e.target.value || 0) }))} placeholder="Qty" className="h-10 rounded-lg" /></div>)}{!modeProducts.length && <p className="text-sm text-muted-foreground">No active products in {checkoutCurrency}.</p>}</div>
             <Button onClick={createCheckoutSession} disabled={creatingSession || !modeProducts.length} className="mt-4 h-11 rounded-lg">{creatingSession ? "Creating link..." : `Create ${modeLabel} checkout link`}</Button>
             {!!checkoutUrl && <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3"><p className="text-sm font-semibold text-blue-900">Checkout link ready</p><p className="mt-1 break-all text-xs text-blue-800">{checkoutUrl}</p><div className="mt-2 flex gap-2"><Button variant="outline" className="h-8 rounded-lg" onClick={() => handleCopy(checkoutUrl, "Checkout link")}>Copy</Button><Button variant="outline" className="h-8 rounded-lg" onClick={() => window.open(checkoutUrl, "_blank")}>Open</Button></div></div>}
@@ -402,9 +469,115 @@ const MerchantOnboardingPage = () => {
       );
     }
 
-    if (activeView === "transactions") return <div className="rounded-2xl border border-border bg-white p-5"><h3 className="text-2xl font-bold text-slate-900">Transactions</h3><div className="mt-4 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-muted-foreground"><th className="pb-2 pr-3">Date</th><th className="pb-2 pr-3">Customer</th><th className="pb-2 pr-3">Amount</th><th className="pb-2 pr-3">Status</th><th className="pb-2">TX</th></tr></thead><tbody>{modePayments.map((p) => { const customer = customersById[p.buyer_user_id]; return <tr key={p.id} className="border-b"><td className="py-2 pr-3">{new Date(p.created_at).toLocaleString()}</td><td className="py-2 pr-3">{customer?.full_name || customer?.username || p.buyer_user_id.slice(0, 8)}</td><td className="py-2 pr-3">{p.currency} {Number(p.amount).toFixed(2)}</td><td className="py-2 pr-3">{p.status}</td><td className="py-2 font-mono text-xs">{p.transaction_id}</td></tr>; })}</tbody></table>{!modePayments.length && <p className="py-6 text-sm text-muted-foreground">No transactions yet.</p>}</div></div>;
-    if (activeView === "customers") return <div className="rounded-2xl border border-border bg-white p-5"><h3 className="text-2xl font-bold text-slate-900">Customers</h3><div className="mt-4 grid gap-2">{uniqueCustomers.map((id) => { const c = customersById[id]; return <div key={id} className="flex items-center justify-between rounded-xl border border-border p-3"><div><p className="font-medium text-slate-900">{c?.full_name || "OpenPay Customer"}</p><p className="text-xs text-muted-foreground">@{c?.username || id.slice(0, 8)}</p></div><p className="text-xs text-muted-foreground">{modePayments.filter((p) => p.buyer_user_id === id).length} payments</p></div>; })}{!uniqueCustomers.length && <p className="py-6 text-sm text-muted-foreground">No customers yet.</p>}</div></div>;
-    if (activeView === "balances") return <div className="rounded-2xl border border-border bg-white p-5"><h3 className="text-2xl font-bold text-slate-900">Balances</h3><div className="mt-4 grid gap-3 md:grid-cols-3"><div className="rounded-xl border border-border p-4"><p className="text-xs text-muted-foreground">Incoming</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.gross.toFixed(2)}</p></div><div className="rounded-xl border border-border p-4"><p className="text-xs text-muted-foreground">Refunded</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.refunds.toFixed(2)}</p></div><div className="rounded-xl border border-border p-4"><p className="text-xs text-muted-foreground">Available</p><p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.available.toFixed(2)}</p></div></div></div>;
+    if (activeView === "transactions") {
+      return (
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <h3 className="text-2xl font-bold text-slate-900">Transactions</h3>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2 pr-3">Date</th>
+                  <th className="pb-2 pr-3">Customer</th>
+                  <th className="pb-2 pr-3">Source link</th>
+                  <th className="pb-2 pr-3">API key</th>
+                  <th className="pb-2 pr-3">Amount</th>
+                  <th className="pb-2 pr-3">Status</th>
+                  <th className="pb-2">TX</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modePayments.map((p) => {
+                  const customer = customersById[p.buyer_user_id];
+                  const session = sessionsById[p.session_id];
+                  const customerDisplayName = session?.customer_name || customer?.full_name || customer?.username || p.buyer_user_id.slice(0, 8);
+                  const customerEmail = session?.customer_email || "";
+                  const key = p.api_key_id ? apiKeysById[p.api_key_id] : null;
+                  const keyDisplay = key ? `${key.key_name} (****${key.secret_key_last4})` : `${p.key_mode} key`;
+                  const linkDisplay = p.payment_link_token ? p.payment_link_token : "Direct checkout";
+
+                  return (
+                    <tr key={p.id} className="border-b align-top">
+                      <td className="py-2 pr-3">{new Date(p.created_at).toLocaleString()}</td>
+                      <td className="py-2 pr-3">
+                        <p className="font-medium text-slate-900">{customerDisplayName}</p>
+                        {!!customerEmail && <p className="text-xs text-muted-foreground">{customerEmail}</p>}
+                        {!customerEmail && customer?.username && <p className="text-xs text-muted-foreground">@{customer.username}</p>}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <p className="font-mono text-xs text-slate-700">{linkDisplay}</p>
+                      </td>
+                      <td className="py-2 pr-3">
+                        <p className="text-xs text-slate-700">{keyDisplay}</p>
+                      </td>
+                      <td className="py-2 pr-3">{p.currency} {Number(p.amount).toFixed(2)}</td>
+                      <td className="py-2 pr-3">{p.status}</td>
+                      <td className="py-2 font-mono text-xs">{p.transaction_id}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!modePayments.length && <p className="py-6 text-sm text-muted-foreground">No transactions yet.</p>}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeView === "customers") {
+      return (
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <h3 className="text-2xl font-bold text-slate-900">Customers</h3>
+          <div className="mt-4 grid gap-2">
+            {uniqueCustomers.map((id) => {
+              const c = customersById[id];
+              const latestPayment = modePayments.find((payment) => payment.buyer_user_id === id);
+              const latestSession = latestPayment ? sessionsById[latestPayment.session_id] : undefined;
+              const customerDisplayName = latestSession?.customer_name || c?.full_name || "OpenPay Customer";
+              const customerEmail = latestSession?.customer_email || "";
+
+              return (
+                <div key={id} className="flex items-center justify-between rounded-xl border border-border p-3">
+                  <div>
+                    <p className="font-medium text-slate-900">{customerDisplayName}</p>
+                    {!!customerEmail && <p className="text-xs text-muted-foreground">{customerEmail}</p>}
+                    {!customerEmail && <p className="text-xs text-muted-foreground">@{c?.username || id.slice(0, 8)}</p>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{modePayments.filter((p) => p.buyer_user_id === id).length} payments</p>
+                </div>
+              );
+            })}
+            {!uniqueCustomers.length && <p className="py-6 text-sm text-muted-foreground">No customers yet.</p>}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeView === "balances") {
+      return (
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <h3 className="text-2xl font-bold text-slate-900">Balances</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border p-4">
+              <p className="text-xs text-muted-foreground">Incoming</p>
+              <p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.gross.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl border border-border p-4">
+              <p className="text-xs text-muted-foreground">Refunded</p>
+              <p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.refunds.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl border border-border p-4">
+              <p className="text-xs text-muted-foreground">Available</p>
+              <p className="mt-1 text-xl font-bold">{defaultCurrency} {kpis.available.toFixed(2)}</p>
+            </div>
+            <div className="rounded-xl border border-border p-4">
+              <p className="text-xs text-muted-foreground">Wallet balance</p>
+              <p className="mt-1 text-xl font-bold">{defaultCurrency} {walletBalance.toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return <div className="rounded-2xl border border-border bg-white p-5"><h3 className="text-2xl font-bold text-slate-900">Payments analytics</h3><div className="mt-4 space-y-4"><div><div className="mb-1 flex items-center justify-between text-sm"><span>Success rate</span><span className="font-semibold">{kpis.total ? ((kpis.succeeded / kpis.total) * 100).toFixed(1) : "0.0"}%</span></div><div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-emerald-500" style={{ width: `${kpis.total ? (kpis.succeeded / kpis.total) * 100 : 0}%` }} /></div></div><div><div className="mb-1 flex items-center justify-between text-sm"><span>Failure rate</span><span className="font-semibold">{kpis.total ? ((kpis.failed / kpis.total) * 100).toFixed(1) : "0.0"}%</span></div><div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-rose-500" style={{ width: `${kpis.total ? (kpis.failed / kpis.total) * 100 : 0}%` }} /></div></div></div></div>;
   };
 
@@ -438,7 +611,20 @@ const MerchantOnboardingPage = () => {
 
           <div className="mt-6 rounded-2xl border border-border bg-white p-5">
             <h3 className="font-semibold text-slate-900">Easy setup settings</h3>
-            <div className="mt-3 grid gap-2 md:grid-cols-2"><Input value={merchantName} onChange={(e) => setMerchantName(e.target.value)} placeholder="Merchant name" className="h-10 rounded-lg" /><Input value={merchantUsername} onChange={(e) => setMerchantUsername(e.target.value)} placeholder="Merchant username" className="h-10 rounded-lg" /><Input value={merchantLogoUrl} onChange={(e) => setMerchantLogoUrl(e.target.value)} placeholder="Merchant logo URL" className="h-10 rounded-lg" /><Input value={defaultCurrency} onChange={(e) => setDefaultCurrency(e.target.value.toUpperCase())} placeholder="Default currency" className="h-10 rounded-lg" /></div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <Input value={merchantName} onChange={(e) => setMerchantName(e.target.value)} placeholder="Merchant name" className="h-10 rounded-lg" />
+              <Input value={merchantUsername} onChange={(e) => setMerchantUsername(e.target.value)} placeholder="Merchant username" className="h-10 rounded-lg" />
+              <Input value={merchantLogoUrl} onChange={(e) => setMerchantLogoUrl(e.target.value)} placeholder="Merchant logo URL" className="h-10 rounded-lg" />
+              <select
+                value={defaultCurrency}
+                onChange={(e) => setDefaultCurrency(e.target.value.toUpperCase())}
+                className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
+              >
+                {currencyOptions.map((code) => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+              </select>
+            </div>
             <Button onClick={saveProfile} disabled={savingProfile} className="mt-3 h-10 rounded-lg">{savingProfile ? "Saving..." : "Save profile"}</Button>
           </div>
         </main>

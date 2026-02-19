@@ -43,6 +43,14 @@ interface SavingsDashboard {
   apy: number;
 }
 
+interface SavingsTransferActivity {
+  id: string;
+  direction: "wallet_to_savings" | "savings_to_wallet";
+  amount: number;
+  note: string;
+  created_at: string;
+}
+
 interface LoanDashboard {
   id: string;
   principal_amount: number;
@@ -57,7 +65,12 @@ interface LoanDashboard {
   created_at: string;
 }
 
-const getGreeting = () => "Good Day";
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};
 
 const Dashboard = () => {
   const remittanceUiEnabled = isRemittanceUiEnabled();
@@ -83,6 +96,8 @@ const Dashboard = () => {
   const [lastAdRunAt, setLastAdRunAt] = useState<number>(0);
   const [activeSection, setActiveSection] = useState<DashboardSection>("wallet");
   const [savings, setSavings] = useState<SavingsDashboard | null>(null);
+  const [savingsTransfers, setSavingsTransfers] = useState<SavingsTransferActivity[]>([]);
+  const [creditScore, setCreditScore] = useState(620);
   const [loan, setLoan] = useState<LoanDashboard | null>(null);
   const [movingToSavings, setMovingToSavings] = useState(false);
   const [movingToWallet, setMovingToWallet] = useState(false);
@@ -120,9 +135,10 @@ const Dashboard = () => {
   ];
 
   const loadSavingsAndLoan = async () => {
-    const [{ data: savingsData }, { data: loanData }] = await Promise.all([
+    const [{ data: savingsData }, { data: loanData }, { data: creditScoreData }] = await Promise.all([
       supabase.rpc("get_my_savings_dashboard"),
       supabase.rpc("get_my_latest_loan"),
+      (supabase as any).rpc("get_my_credit_score"),
     ]);
 
     const savingsRow = Array.isArray(savingsData) ? savingsData[0] : null;
@@ -155,6 +171,13 @@ const Dashboard = () => {
           }
         : null,
     );
+
+    const parsedCreditScore = Number(
+      Array.isArray(creditScoreData)
+        ? creditScoreData[0]
+        : creditScoreData,
+    );
+    setCreditScore(Number.isFinite(parsedCreditScore) ? parsedCreditScore : 620);
   };
 
   const loadDashboard = async () => {
@@ -193,6 +216,32 @@ const Dashboard = () => {
 
       const { data: accountData } = await supabase.rpc("upsert_my_user_account");
       setUserAccount(accountData as unknown as UserAccount);
+
+      const { data: savingsTransferRows } = await (supabase as any)
+        .from("user_savings_transfers")
+        .select("id, direction, amount, note, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (Array.isArray(savingsTransferRows)) {
+        const recentSavingsTransfers: SavingsTransferActivity[] = savingsTransferRows
+          .filter(
+            (row: any) =>
+              typeof row?.id === "string" &&
+              (row?.direction === "wallet_to_savings" || row?.direction === "savings_to_wallet"),
+          )
+          .map((row: any) => ({
+            id: String(row.id),
+            direction: row.direction,
+            amount: Number(row.amount || 0),
+            note: String(row.note || ""),
+            created_at: String(row.created_at || ""),
+          }));
+        setSavingsTransfers(recentSavingsTransfers);
+      } else {
+        setSavingsTransfers([]);
+      }
 
       const { data: txs } = await supabase
         .from("transactions")
@@ -594,6 +643,34 @@ const Dashboard = () => {
               </button>
             </div>
           </div>
+          <div className="mt-4 rounded-2xl border border-border/70 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold">Recent savings activity</p>
+              {savingsTransfers.length > 0 && <p className="text-xs text-muted-foreground">{savingsTransfers.length} latest</p>}
+            </div>
+            {savingsTransfers.length === 0 ? (
+              <p className="py-3 text-sm text-muted-foreground">No savings activity yet.</p>
+            ) : (
+              <div className="divide-y divide-border/70 rounded-xl border border-border/70">
+                {savingsTransfers.map((entry) => {
+                  const isWalletToSavings = entry.direction === "wallet_to_savings";
+                  const directionLabel = isWalletToSavings ? "Move wallet to savings" : "Move savings to wallet";
+                  return (
+                    <div key={entry.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{directionLabel}</p>
+                        <p className="text-xs text-muted-foreground">{entry.created_at ? format(new Date(entry.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
+                        {entry.note && <p className="text-xs text-muted-foreground">{entry.note}</p>}
+                      </div>
+                      <p className={`text-sm font-semibold ${isWalletToSavings ? "text-paypal-success" : "text-paypal-blue"}`}>
+                        {balanceHidden ? "****" : `${isWalletToSavings ? "+" : "-"}${formatCurrency(entry.amount)}`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -605,7 +682,7 @@ const Dashboard = () => {
           </div>
           <div className="rounded-2xl border border-border/70 p-4">
             <p className="text-sm text-muted-foreground">Credit score</p>
-            <p className="text-2xl font-bold text-foreground">{loan?.credit_score ?? 620}</p>
+            <p className="text-2xl font-bold text-foreground">{loan?.credit_score ?? creditScore}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Higher score can reduce monthly fee rate on OpenPay loans. Values shown in {currencyTag}.
             </p>
