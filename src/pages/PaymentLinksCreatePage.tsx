@@ -45,6 +45,8 @@ type PaymentLinkRow = {
   created_at: string;
 };
 
+const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
+
 const PaymentLinksCreatePage = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -509,17 +511,26 @@ const PaymentLinksCreatePage = () => {
                         <option value="sandbox">sandbox</option>
                         <option value="live">live</option>
                       </select>
-                      <select
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                        className="h-12 rounded-xl border border-border bg-background px-3 text-sm"
-                      >
-                        {currencyChoices.map((item) => (
-                          <option key={item.code} value={item.code}>
-                            {item.flag} {getPiCodeLabel(item.code)} - {item.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        {currency === "PI" && (
+                          <img
+                            src={PURE_PI_ICON_URL}
+                            alt="Pure Pi"
+                            className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                          />
+                        )}
+                        <select
+                          value={currency}
+                          onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                          className={`h-12 w-full rounded-xl border border-border bg-background text-sm ${currency === "PI" ? "pl-10 pr-3" : "px-3"}`}
+                        >
+                          {currencyChoices.map((item) => (
+                            <option key={item.code} value={item.code}>
+                              {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <Input value={secretKey} onChange={(e) => setSecretKey(e.target.value)} className="h-12 rounded-xl col-span-2" placeholder={`osk_${mode}_...`} />
                     </div>
 

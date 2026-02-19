@@ -43,6 +43,7 @@ type MerchantPayment = {
 type MerchantSession = { id: string; session_token: string; status: string; key_mode: Mode; currency: string; total_amount: number; customer_name: string | null; customer_email: string | null; created_at: string };
 
 type CustomerProfile = { id: string; full_name: string; username: string | null };
+const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
 
 const navItems: { key: PortalView; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "home", label: "Home", icon: LayoutDashboard },
@@ -489,17 +490,26 @@ const MerchantOnboardingPage = () => {
               <Input value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="Name" className="h-11 rounded-lg" />
               <Input value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Description" className="h-11 rounded-lg md:col-span-2" />
               <Input value={productPrice} onChange={(e) => setProductPrice(e.target.value)} placeholder="Amount" className="h-11 rounded-lg" />
-              <select
-                value={productCurrency}
-                onChange={(e) => setProductCurrency(e.target.value.toUpperCase())}
-                className="h-11 rounded-lg border border-border bg-white px-3 text-sm"
-              >
-                {currencyChoices.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {item.flag} {getPiCodeLabel(item.code)} - {item.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                {productCurrency === "PI" && (
+                  <img
+                    src={PURE_PI_ICON_URL}
+                    alt="Pure Pi"
+                    className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                  />
+                )}
+                <select
+                  value={productCurrency}
+                  onChange={(e) => setProductCurrency(e.target.value.toUpperCase())}
+                  className={`h-11 w-full rounded-lg border border-border bg-white text-sm ${productCurrency === "PI" ? "pl-10 pr-3" : "px-3"}`}
+                >
+                  {currencyChoices.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <Button onClick={createProduct} disabled={creatingProduct} className="h-11 rounded-lg md:col-span-2"><Plus className="mr-2 h-4 w-4" />{creatingProduct ? "Adding..." : "Add product"}</Button>
             </div>
           </div>
@@ -515,17 +525,26 @@ const MerchantOnboardingPage = () => {
             <h3 className="text-2xl font-bold text-slate-900">Create checkout link</h3>
             <Button variant="outline" className="mt-2 h-9 rounded-lg" onClick={() => navigate("/payment-links/create")}>Open advanced /payment-links/create</Button>
             <div className="mt-4 grid gap-2 md:grid-cols-2">
-              <select
-                value={checkoutCurrency}
-                onChange={(e) => setCheckoutCurrency(e.target.value.toUpperCase())}
-                className="h-11 rounded-lg border border-border bg-white px-3 text-sm"
-              >
-                {currencyChoices.map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {item.flag} {getPiCodeLabel(item.code)} - {item.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                {checkoutCurrency === "PI" && (
+                  <img
+                    src={PURE_PI_ICON_URL}
+                    alt="Pure Pi"
+                    className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full object-cover"
+                  />
+                )}
+                <select
+                  value={checkoutCurrency}
+                  onChange={(e) => setCheckoutCurrency(e.target.value.toUpperCase())}
+                  className={`h-11 w-full rounded-lg border border-border bg-white text-sm ${checkoutCurrency === "PI" ? "pl-10 pr-3" : "px-3"}`}
+                >
+                  {currencyChoices.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.flag} {getPiCodeLabel(item.code)} - {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <Input value={checkoutSecretKey} onChange={(e) => setCheckoutSecretKey(e.target.value)} placeholder={`Paste osk_${mode}_...`} className="h-11 rounded-lg" />
             </div>
             <div className="mt-4 space-y-2">{modeProducts.map((p) => <div key={p.id} className="grid grid-cols-1 items-center gap-2 rounded-xl border border-border p-2 sm:grid-cols-[1fr_120px]"><p className="text-sm text-slate-900">{p.product_name} ({getPiCodeLabel((p.currency || "").toUpperCase())} {Number(p.unit_amount).toFixed(2)})</p><Input value={String(selectedQty[p.id] || "")} onChange={(e) => setSelectedQty((prev) => ({ ...prev, [p.id]: Number(e.target.value || 0) }))} placeholder="Qty" className="h-10 rounded-lg" /></div>)}{!modeProducts.length && <p className="text-sm text-muted-foreground">No active products in {getPiCodeLabel(checkoutCurrency)}.</p>}</div>

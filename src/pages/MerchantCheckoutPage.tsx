@@ -39,6 +39,7 @@ type PaymentLinkSessionCreate = {
   redirect_url: string | null;
   call_to_action: string;
 };
+const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
 
 const COUNTRIES: string[] = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria",
@@ -546,10 +547,17 @@ const MerchantCheckoutPage = () => {
               <div className="mt-3">
                 <p className="mb-1 text-xl text-foreground">Pay currency (170+ OpenPay currencies)</p>
                 <div className="relative">
+                  {payCurrencyCode === "PI" && (
+                    <img
+                      src={PURE_PI_ICON_URL}
+                      alt="Pure Pi"
+                      className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 rounded-full object-cover"
+                    />
+                  )}
                   <select
                     value={payCurrencyCode}
                     onChange={(e) => setPayCurrencyCode(e.target.value)}
-                    className="h-12 w-full appearance-none rounded-md border border-border bg-white px-3 text-lg"
+                    className={`h-12 w-full appearance-none rounded-md border border-border bg-white text-lg ${payCurrencyCode === "PI" ? "pl-10 pr-3" : "px-3"}`}
                   >
                     {currencies.map((currencyOption) => (
                       <option key={currencyOption.code} value={currencyOption.code}>
