@@ -685,6 +685,7 @@ const MerchantPosPage = () => {
                   >
                     <div>
                       <p className="font-semibold text-slate-900">{tx.payer_name}</p>
+                      {!!tx.customer_email && <p className="text-xs text-slate-500">{tx.customer_email}</p>}
                       <p className="text-xs text-slate-500">{new Date(tx.payment_created_at).toLocaleString()}</p>
                     </div>
                     <div className="text-right">
@@ -708,6 +709,7 @@ const MerchantPosPage = () => {
                     <div key={tx.payment_id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
                       <div>
                         <p className="font-semibold text-slate-900">{tx.payer_name}</p>
+                        {!!tx.customer_email && <p className="text-xs text-slate-500">{tx.customer_email}</p>}
                         <p className="text-xs text-slate-500">{new Date(tx.payment_created_at).toLocaleString()}</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -847,6 +849,7 @@ const MerchantPosPage = () => {
               <button onClick={() => setSelectedTx(null)} className="rounded-md border border-slate-200 px-2 py-1 text-xs">Close</button>
             </div>
             <p className="text-sm text-slate-700">Payer: {selectedTx.payer_name}</p>
+            {!!selectedTx.customer_email && <p className="text-sm text-slate-700">Email: {selectedTx.customer_email}</p>}
             <p className="text-sm text-slate-700">Amount: {selectedTx.amount.toFixed(2)} {selectedTx.currency}</p>
             <p className="text-sm text-slate-700">Status: {selectedTx.payment_status}</p>
             <p className="text-sm text-slate-700">Session: {selectedTx.session_token}</p>

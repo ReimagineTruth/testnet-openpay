@@ -70,6 +70,7 @@ type MerchantActivityRow = {
   created_at: string;
   counterparty_name: string | null;
   counterparty_username: string | null;
+  counterparty_email: string | null;
   source: string;
 };
 
@@ -264,6 +265,7 @@ const MerchantOnboardingPage = () => {
         created_at: String(row.created_at || ""),
         counterparty_name: row.counterparty_name ? String(row.counterparty_name) : null,
         counterparty_username: row.counterparty_username ? String(row.counterparty_username) : null,
+        counterparty_email: row.counterparty_email ? String(row.counterparty_email) : null,
         source: String(row.source || "merchant_portal"),
       })),
     );
@@ -565,6 +567,7 @@ const MerchantOnboardingPage = () => {
                 {merchantActivity.slice(0, 5).map((row) => (
                   <div key={row.activity_id} className="rounded-lg border border-border px-3 py-2">
                     <p className="text-sm font-medium text-slate-900">{row.activity_type.replaceAll("_", " ")}</p>
+                    {!!row.counterparty_email && <p className="text-xs text-muted-foreground">{row.counterparty_email}</p>}
                     <p className="text-xs text-muted-foreground">
                       {getPiCodeLabel((row.currency || defaultCurrency).toUpperCase())} {Number(row.amount || 0).toFixed(2)} · {row.source}
                     </p>
@@ -849,6 +852,7 @@ const MerchantOnboardingPage = () => {
                 <div key={row.activity_id} className="rounded-lg border border-border px-3 py-2">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-slate-900">{row.activity_type.replaceAll("_", " ")}</p>
+                    {!!row.counterparty_email && <p className="text-xs text-muted-foreground">{row.counterparty_email}</p>}
                     <p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p>
                   </div>
                   <p className="text-xs text-muted-foreground">
