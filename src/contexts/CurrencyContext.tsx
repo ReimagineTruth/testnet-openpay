@@ -167,17 +167,41 @@ const countryCodeToFlag = (countryCode: string) =>
     .map((char) => String.fromCodePoint(127397 + char.charCodeAt(0)))
     .join("");
 
+const isTwoLetterCountryCode = (value: string) => /^[A-Za-z]{2}$/.test(value);
+const isGlobeEmoji = (value: string) => ["\u{1F30D}", "\u{1F30E}", "\u{1F30F}", "\u{1F310}"].includes(value);
+
+const normalizeCurrencyFlag = (currencyCode: string, rawFlag?: string | null) => {
+  if (currencyCode === "PI") return "PI";
+
+  const candidate = String(rawFlag || "").trim();
+  if (isTwoLetterCountryCode(candidate)) {
+    return countryCodeToFlag(candidate.toUpperCase());
+  }
+
+  if (candidate && !isGlobeEmoji(candidate)) {
+    return candidate;
+  }
+
+  const mappedCountryCode = currencyFlagCountryCode[currencyCode];
+  if (mappedCountryCode) {
+    return countryCodeToFlag(mappedCountryCode);
+  }
+
+  const inferredCountryCode = currencyCode.slice(0, 2);
+  if (isTwoLetterCountryCode(inferredCountryCode)) {
+    return countryCodeToFlag(inferredCountryCode);
+  }
+
+  return "\u{1F3F3}";
+};
+
 const existingCodes = new Set(baseCurrencies.map((currency) => currency.code));
 const mergedCurrencies: Currency[] = [
   ...baseCurrencies,
   ...additionalCurrencies.filter((currency) => !existingCodes.has(currency.code)),
 ];
 export const currencies: Currency[] = mergedCurrencies.map((currency) => {
-  if (currency.code === "PI") return currency;
-  const countryCode = currencyFlagCountryCode[currency.code];
-  if (!countryCode) return currency;
-
-  return { ...currency, flag: countryCodeToFlag(countryCode) };
+  return { ...currency, flag: normalizeCurrencyFlag(currency.code, currency.flag) };
 });
 
 interface CurrencyContextType {
@@ -252,6 +276,7 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
 
       const merged = currencies.map((fallback) => ({
         ...fallback,
+        flag: normalizeCurrencyFlag(fallback.code, fallback.flag),
         rate: dbRates.get(fallback.code) ?? fallback.rate,
       }));
       const seen = new Set(merged.map((c) => c.code));
@@ -261,7 +286,7 @@ export const CurrencyProvider = ({ children }: { children: ReactNode }) => {
           code: row.iso_code,
           name: row.display_name,
           symbol: row.symbol,
-          flag: row.flag,
+          flag: normalizeCurrencyFlag(row.iso_code, row.flag),
           rate: Number(row.usd_rate || 1),
         } satisfies Currency));
       const nextCurrencies = [...merged, ...extras];

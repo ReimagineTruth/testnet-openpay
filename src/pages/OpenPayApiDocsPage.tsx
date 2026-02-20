@@ -85,6 +85,18 @@ const OpenPayApiDocsPage = () => {
     "p_cvc": "123",
     "p_note": "Checkout payment"
   }'`,
+      merchantTransactions: `curl -X POST "${OPENPAY_RPC_BASE}/get_my_merchant_link_transactions" \\
+  -H "apikey: YOUR_SERVICE_OR_ANON_KEY" \\
+  -H "Authorization: Bearer MERCHANT_AUTH_ACCESS_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "p_mode": "live",
+    "p_payment_link_token": null,
+    "p_session_token": null,
+    "p_status": "succeeded",
+    "p_limit": 100,
+    "p_offset": 0
+  }'`,
       jsFetch: `const rpc = async (fn, body, token) => {
   const res = await fetch(\`${OPENPAY_RPC_BASE}/\${fn}\`, {
     method: "POST",
@@ -359,6 +371,11 @@ const OpenPayApiDocsPage = () => {
                 <td className="py-2 pr-3">Complete session using OpenPay virtual card</td>
                 <td className="py-2">`p_session_token`, card number/expiry/cvc</td>
               </tr>
+              <tr className="border-b border-border/60">
+                <td className="py-2 pr-3 font-mono text-xs">get_my_merchant_link_transactions</td>
+                <td className="py-2 pr-3">Get all merchant link/session transactions with full customer/payment details</td>
+                <td className="py-2">`p_mode`, `p_payment_link_token`, `p_session_token`, `p_status`, pagination</td>
+              </tr>
               <tr>
                 <td className="py-2 pr-3 font-mono text-xs">revoke_my_merchant_api_key</td>
                 <td className="py-2 pr-3">Disable compromised key</td>
@@ -374,6 +391,7 @@ const OpenPayApiDocsPage = () => {
         <Snippet title="Create Checkout Session (cURL)" code={snippets.createCheckoutSession} />
         <Snippet title="Create Session from Payment Link (cURL)" code={snippets.createSessionFromLink} />
         <Snippet title="Pay Checkout with Virtual Card (cURL)" code={snippets.payWithVirtualCard} />
+        <Snippet title="Get Merchant Transactions (cURL)" code={snippets.merchantTransactions} />
         <Snippet title="Reusable JS Fetch RPC Helper" code={snippets.jsFetch} />
       </div>
 
@@ -409,7 +427,7 @@ const OpenPayApiDocsPage = () => {
           <h2 className="font-semibold text-foreground">Need SQL?</h2>
         </div>
         <p className="text-sm text-muted-foreground">
-          For standard third-party API-key integration, no extra SQL migration is required. Current merchant tables/RPCs already support full integration.
+          Merchant transaction API is now available via <code>get_my_merchant_link_transactions</code> and the SQL migration has been added.
         </p>
       </div>
 

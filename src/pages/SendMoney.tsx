@@ -46,6 +46,10 @@ const SendMoney = () => {
   const [searchParams] = useSearchParams();
   const { currencies, currency, setCurrency, format: formatCurrency } = useCurrency();
   const checkoutSessionToken = searchParams.get("checkout_session") || "";
+  const checkoutCustomerName = searchParams.get("checkout_customer_name") || "";
+  const checkoutCustomerEmail = searchParams.get("checkout_customer_email") || "";
+  const checkoutCustomerPhone = searchParams.get("checkout_customer_phone") || "";
+  const checkoutCustomerAddress = searchParams.get("checkout_customer_address") || "";
   const formatShortText = (value: string, head = 28, tail = 18) => {
     const cleaned = value.trim();
     if (cleaned.length <= head + tail + 3) return cleaned;
@@ -267,9 +271,17 @@ const SendMoney = () => {
         p_session_token: checkoutSessionToken,
         p_transaction_id: txId,
         p_note: "Completed via OpenPay wallet /send flow",
+        p_customer_name: checkoutCustomerName || null,
+        p_customer_email: checkoutCustomerEmail || null,
+        p_customer_phone: checkoutCustomerPhone || null,
+        p_customer_address: checkoutCustomerAddress || null,
       });
       if (completeError) {
         toast.error(`Payment sent, but checkout completion failed: ${completeError.message}`);
+      } else {
+        navigate(`/merchant-checkout?session=${encodeURIComponent(checkoutSessionToken)}&status=paid&tx=${encodeURIComponent(txId)}`, { replace: true });
+        setLoading(false);
+        return;
       }
     }
 
@@ -416,6 +428,10 @@ const SendMoney = () => {
                 </p>
               )}
             </div>
+
+            <p className="mt-3 rounded-md border border-paypal-light-blue/60 bg-[#edf3ff] px-2 py-1 text-xs text-paypal-blue">
+              Only transact with users you know. Approve only if you expected this transaction. If you do not recognize the user, cancel now.
+            </p>
 
             <div className="mt-4 flex gap-2">
               <Button variant="outline" className="h-11 flex-1 rounded-2xl" onClick={() => setShowSendConfirm(false)}>

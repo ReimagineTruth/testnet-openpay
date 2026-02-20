@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Copy, ExternalLink, FileText, Link2, Menu, MessageCircle, Plus, Trash2, X } from "lucide-react";
+import { Bell, Copy, ExternalLink, FileText, Link2, Menu, MessageCircle, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
 
@@ -152,9 +152,12 @@ const PaymentLinksCreatePage = () => {
     const map = new Map<string, { code: string; name: string; flag: string }>();
     currencies.forEach((item) => {
       const code = (item.code || "").toUpperCase();
-      if (code.length !== 3 || map.has(code)) return;
+      if ((code !== "PI" && code.length !== 3) || map.has(code)) return;
       map.set(code, { code, name: item.name || code, flag: item.flag || "PI" });
     });
+    if (!map.has("PI")) {
+      map.set("PI", { code: "PI", name: "Pure Pi", flag: "PI" });
+    }
     const list = Array.from(map.values());
     list.sort((a, b) => {
       if (a.code === "PI") return -1;
@@ -715,8 +718,8 @@ const PaymentLinksCreatePage = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <BrandLogo className="h-7 w-7" />
-            <p className="text-4xl font-black leading-none tracking-tight text-foreground">OpenPay</p>
+            <ShoppingCart className="h-7 w-7 text-foreground" />
+            <p className="text-4xl font-black leading-none tracking-tight text-foreground">Checkout Links</p>
           </div>
 
           <div className="flex items-center gap-2">

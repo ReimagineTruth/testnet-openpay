@@ -20,6 +20,7 @@ const PUBLIC_PATHS = new Set([
   "/auth",
   "/signin",
   "/signup",
+  "/ledger",
   "/admin-mrwain",
   "/terms",
   "/privacy",

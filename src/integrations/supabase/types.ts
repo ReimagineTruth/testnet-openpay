@@ -593,6 +593,16 @@ export type Database = {
           username: string | null
         }[]
       }
+      get_public_ledger: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          amount: number
+          event_type: string
+          note: string | null
+          occurred_at: string
+          status: string
+        }[]
+      }
       is_transaction_participant: {
         Args: { _transaction_id: string }
         Returns: boolean

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { getFunctionErrorMessage } from "@/lib/supabaseFunctionError";
 import { Info } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 interface Profile {
   id: string;
@@ -44,6 +45,13 @@ const SendInvoice = () => {
   const [loading, setLoading] = useState(false);
   const [accountLookupResult, setAccountLookupResult] = useState<Profile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    | { type: "create"; recipient: Profile; amount: number; description: string; dueDate: string | null }
+    | { type: "pay"; invoice: Invoice; sender: Profile | null }
+    | null
+  >(null);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -126,7 +134,7 @@ const SendInvoice = () => {
   const received = invoices.filter((i) => i.recipient_id === userId);
   const sent = invoices.filter((i) => i.sender_id === userId);
 
-  const handleCreate = async () => {
+  const submitCreate = async () => {
     if (!userId || !recipientId) {
       toast.error("Select recipient");
       return;
@@ -163,7 +171,7 @@ const SendInvoice = () => {
     await loadData();
   };
 
-  const handlePay = async (invoice: Invoice) => {
+  const submitPay = async (invoice: Invoice) => {
     setLoading(true);
     const { error } = await supabase.functions.invoke("send-money", {
       body: {
@@ -195,13 +203,64 @@ const SendInvoice = () => {
     await loadData();
   };
 
+  const handleCreate = () => {
+    if (!recipientId || !selectedRecipient) {
+      toast.error("Select recipient");
+      return;
+    }
+
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+
+    setConfirmAction({
+      type: "create",
+      recipient: selectedRecipient,
+      amount: parsedAmount,
+      description: description.trim(),
+      dueDate: dueDate || null,
+    });
+    setConfirmModalOpen(true);
+  };
+
+  const handlePay = (invoice: Invoice) => {
+    setConfirmAction({
+      type: "pay",
+      invoice,
+      sender: profileMap.get(invoice.sender_id) || null,
+    });
+    setConfirmModalOpen(true);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction || loading) return;
+
+    if (confirmAction.type === "create") {
+      await submitCreate();
+    } else {
+      await submitPay(confirmAction.invoice);
+    }
+
+    setConfirmModalOpen(false);
+    setConfirmAction(null);
+  };
+
+  const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
   return (
     <div className="min-h-screen bg-background pb-8">
-      <div className="flex items-center gap-3 px-4 pt-4 mb-4">
-        <button onClick={() => navigate("/menu")}>
-          <ArrowLeft className="w-6 h-6 text-foreground" />
-        </button>
-        <h1 className="text-xl font-bold text-foreground">Send Invoice</h1>
+      <div className="flex items-center justify-between gap-3 px-4 pt-4 mb-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/menu")}>
+            <ArrowLeft className="w-6 h-6 text-foreground" />
+          </button>
+          <h1 className="text-xl font-bold text-foreground">Send Invoice</h1>
+        </div>
+        <Button type="button" variant="outline" className="h-9 rounded-full px-4" onClick={() => setShowInstructions(true)}>
+          Instructions
+        </Button>
       </div>
 
       <div className="px-4 space-y-4">
@@ -376,6 +435,135 @@ const SendInvoice = () => {
           })}
         </div>
       </div>
+
+      <Dialog
+        open={confirmModalOpen}
+        onOpenChange={(open) => {
+          if (loading) return;
+          setConfirmModalOpen(open);
+          if (!open) setConfirmAction(null);
+        }}
+      >
+        <DialogContent className="rounded-3xl">
+          <DialogTitle className="text-xl font-bold text-foreground">
+            {confirmAction?.type === "create" ? "Confirm invoice" : "Confirm payment"}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Review the details before sending.
+          </DialogDescription>
+
+          {(confirmAction?.type === "create" || confirmAction?.type === "pay") && (
+            <div className="mt-3 flex items-center gap-3 rounded-2xl bg-secondary/70 px-3 py-2.5">
+              {(confirmAction.type === "create" ? confirmAction.recipient.avatar_url : confirmAction.sender?.avatar_url) ? (
+                <img
+                  src={confirmAction.type === "create" ? confirmAction.recipient.avatar_url || "" : confirmAction.sender?.avatar_url || ""}
+                  alt={confirmAction.type === "create" ? confirmAction.recipient.full_name : confirmAction.sender?.full_name || "User"}
+                  className="h-12 w-12 rounded-full border border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
+                  <span className="text-sm font-bold text-primary-foreground">
+                    {getInitials(confirmAction.type === "create" ? confirmAction.recipient.full_name : confirmAction.sender?.full_name || "User")}
+                  </span>
+                </div>
+              )}
+              <div>
+                <p className="font-semibold text-foreground">
+                  {confirmAction.type === "create" ? confirmAction.recipient.full_name : confirmAction.sender?.full_name || "Unknown user"}
+                </p>
+                {(confirmAction.type === "create" ? confirmAction.recipient.username : confirmAction.sender?.username) && (
+                  <p className="text-sm text-muted-foreground">
+                    @{confirmAction.type === "create" ? confirmAction.recipient.username : confirmAction.sender?.username}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 space-y-2 rounded-2xl border border-border p-3 text-sm">
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Amount</span>
+              <span className="font-semibold text-foreground">
+                {confirmAction?.type === "create"
+                  ? formatCurrency(confirmAction.amount)
+                  : confirmAction?.type === "pay"
+                    ? formatCurrency(confirmAction.invoice.amount)
+                    : "-"}
+              </span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Converted (USD)</span>
+              <span className="font-semibold text-foreground">
+                ${confirmAction?.type === "create"
+                  ? confirmAction.amount.toFixed(2)
+                  : confirmAction?.type === "pay"
+                    ? Number(confirmAction.invoice.amount || 0).toFixed(2)
+                    : "0.00"}
+              </span>
+            </p>
+            <p className="flex items-start justify-between gap-2">
+              <span className="text-muted-foreground">Description</span>
+              <span className="max-w-[70%] break-all text-right text-foreground">
+                {confirmAction?.type === "create"
+                  ? confirmAction.description || "No description"
+                  : confirmAction?.type === "pay"
+                    ? confirmAction.invoice.description || "Invoice payment"
+                    : "No description"}
+              </span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Due date</span>
+              <span className="font-semibold text-foreground">
+                {confirmAction?.type === "create"
+                  ? confirmAction.dueDate || "No due date"
+                  : confirmAction?.type === "pay"
+                    ? confirmAction.invoice.due_date || "No due date"
+                    : "No due date"}
+              </span>
+            </p>
+          </div>
+
+          <p className="mt-3 rounded-md border border-paypal-light-blue/60 bg-[#edf3ff] px-2 py-1 text-xs text-paypal-blue">
+            Approve only if you know this user and expected this transaction. If you do not recognize the sender/recipient, cancel now.
+          </p>
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              className="h-11 flex-1 rounded-2xl"
+              disabled={loading}
+              onClick={() => {
+                setConfirmModalOpen(false);
+                setConfirmAction(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              disabled={loading}
+              onClick={handleConfirmAction}
+            >
+              {loading ? "Processing..." : confirmAction?.type === "create" ? "Confirm & Send" : "Confirm & Pay"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogTitle className="text-lg font-semibold text-foreground">Invoice Instructions</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Review before sending or paying an invoice.
+          </DialogDescription>
+          <div className="space-y-2 text-sm text-foreground">
+            <p>1. Confirm recipient or sender identity before approval.</p>
+            <p>2. Verify amount, due date, and description.</p>
+            <p>3. Only pay invoices from users you know and expected to transact with.</p>
+            <p>4. If any detail looks wrong, cancel and verify first.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

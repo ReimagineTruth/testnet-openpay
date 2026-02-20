@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ChevronDown, CreditCard, HelpCircle, LockKeyhole, QrCode, WalletCards, X } from "lucide-react";
+import { ChevronDown, CreditCard, HelpCircle, LockKeyhole, QrCode, ShoppingCart, WalletCards, X } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -83,10 +83,10 @@ const MerchantCheckoutPage = () => {
   const [resolvedSessionToken, setResolvedSessionToken] = useState(rawSessionToken);
   const [loadingSession, setLoadingSession] = useState(false);
 
-  const [customerName] = useState("");
+  const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
-  const [customerPhone] = useState("");
-  const [customerAddress] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
 
   const [paying, setPaying] = useState(false);
   const [paid, setPaid] = useState(false);
@@ -111,10 +111,27 @@ const MerchantCheckoutPage = () => {
   const legacyAmount = Number(searchParams.get("amount") || "0");
   const legacyCurrency = (searchParams.get("currency") || "USD").toUpperCase();
   const legacyMerchantName = searchParams.get("merchantName") || "";
+  const checkoutStatus = (searchParams.get("status") || "").toLowerCase();
+  const returnedTxId = searchParams.get("tx") || "";
+  const checkoutCustomerName = searchParams.get("checkout_customer_name") || "";
+  const checkoutCustomerEmail = searchParams.get("checkout_customer_email") || "";
+  const checkoutCustomerPhone = searchParams.get("checkout_customer_phone") || "";
+  const checkoutCustomerAddress = searchParams.get("checkout_customer_address") || "";
 
   const isSessionCheckout = !!resolvedSessionToken;
 
   const safeLegacyAmount = useMemo(() => (Number.isFinite(legacyAmount) && legacyAmount > 0 ? legacyAmount : 0), [legacyAmount]);
+
+  useEffect(() => {
+    if (checkoutCustomerName) setCustomerName(checkoutCustomerName);
+    if (checkoutCustomerEmail) setCustomerEmail(checkoutCustomerEmail);
+    if (checkoutCustomerPhone) setCustomerPhone(checkoutCustomerPhone);
+    if (checkoutCustomerAddress) setCustomerAddress(checkoutCustomerAddress);
+    if (checkoutStatus === "paid") {
+      setPaid(true);
+      if (returnedTxId) setTransactionId(returnedTxId);
+    }
+  }, [checkoutCustomerAddress, checkoutCustomerEmail, checkoutCustomerName, checkoutCustomerPhone, checkoutStatus, returnedTxId]);
 
   useEffect(() => {
     const boot = async () => {
@@ -170,11 +187,24 @@ const MerchantCheckoutPage = () => {
         return;
       }
 
-      setSessionData(row as CheckoutSessionPublic);
+      const nextSession = row as CheckoutSessionPublic;
+      setSessionData(nextSession);
+      if (checkoutStatus === "paid" && returnedTxId) {
+        const sourceRate = currencies.find((c) => c.code === nextSession.currency)?.rate ?? 1;
+        setReceiptData({
+          transactionId: returnedTxId,
+          type: "send",
+          amount: Number(nextSession.amount || 0) / (sourceRate || 1),
+          otherPartyName: nextSession.merchant_name || "OpenPay Merchant",
+          otherPartyUsername: nextSession.merchant_username || undefined,
+          note: `Merchant checkout session: ${nextSession.session_id}`,
+          date: new Date(),
+        });
+      }
     };
 
     boot();
-  }, [db, rawSessionToken, paymentLinkToken]);
+  }, [checkoutStatus, currencies, db, paymentLinkToken, rawSessionToken, returnedTxId]);
 
   const handlePaySession = async () => {
     if (!sessionData) {
@@ -239,6 +269,10 @@ const MerchantCheckoutPage = () => {
         p_expiry_year: parsedYear,
         p_cvc: cardCvc,
         p_note: note,
+        p_customer_name: customerName.trim() || null,
+        p_customer_email: customerEmail.trim() || null,
+        p_customer_phone: customerPhone.trim() || null,
+        p_customer_address: customerAddress.trim() || null,
       });
 
       if (rpcError) throw rpcError;
@@ -257,6 +291,13 @@ const MerchantCheckoutPage = () => {
       });
       setReceiptOpen(true);
       toast.success("Payment successful");
+      if (resolvedSessionToken && typeof window !== "undefined") {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set("session", resolvedSessionToken);
+        nextUrl.searchParams.set("status", "paid");
+        if (txid) nextUrl.searchParams.set("tx", txid);
+        window.history.replaceState({}, "", `${nextUrl.pathname}?${nextUrl.searchParams.toString()}`);
+      }
 
       if (linkSessionMeta?.after_payment_type === "redirect" && linkSessionMeta.redirect_url) {
         const target = new URL(linkSessionMeta.redirect_url);
@@ -338,23 +379,25 @@ const MerchantCheckoutPage = () => {
   const merchantUsername = isSessionCheckout ? (sessionData?.merchant_username || "") : "";
   const currency = isSessionCheckout ? (sessionData?.currency || "USD") : legacyCurrency;
   const amount = isSessionCheckout ? Number(sessionData?.amount || 0) : safeLegacyAmount;
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
 
   if (isSessionCheckout && loadingSession && !sessionData) {
     return <SplashScreen message="Loading checkout..." />;
   }
 
-  const amountLabel = currency === "USD" ? `$${amount.toFixed(2)}` : `${currency} ${amount.toFixed(2)}`;
+  const sessionCurrency = currencies.find((c) => c.code === currency);
+  const amountLabel = `${sessionCurrency?.symbol || ""}${amount.toFixed(2)} ${getPiCodeLabel(currency)}`;
   const sessionCurrencyRate = currencies.find((c) => c.code === currency)?.rate ?? 1;
   const selectedPayCurrency = currencies.find((c) => c.code === payCurrencyCode) ?? currencies[0];
   const selectedPayCurrencyRate = selectedPayCurrency?.rate ?? 1;
   const amountInUsd = amount / (sessionCurrencyRate || 1);
   const amountInSelectedCurrency = amountInUsd * selectedPayCurrencyRate;
-  const convertedAmountLabel = `${selectedPayCurrency?.symbol || ""}${amountInSelectedCurrency.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedPayCurrency?.code || ""}`;
+  const convertedAmountLabel = `${selectedPayCurrency?.symbol || ""}${amountInSelectedCurrency.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${getPiCodeLabel(selectedPayCurrency?.code || "PI")}`;
   const showConvertedHint = (selectedPayCurrency?.code || "PI") !== currency;
   const checkoutMemo = isSessionCheckout
     ? `${sessionData?.items?.[0]?.item_name || "OpenPay Payment"} | Session ${resolvedSessionToken}`
     : `${legacyProductName}${legacyProductDescription ? ` | ${legacyProductDescription}` : ""}`;
-  const walletPayUrl = `/send?to=${encodeURIComponent(sessionData?.merchant_user_id || legacyMerchantId)}&amount=${encodeURIComponent(amountInSelectedCurrency.toFixed(2))}&currency=${encodeURIComponent(selectedPayCurrency?.code || "PI")}&note=${encodeURIComponent(checkoutMemo)}&checkout_session=${encodeURIComponent(resolvedSessionToken)}`;
+  const walletPayUrl = `/send?to=${encodeURIComponent(sessionData?.merchant_user_id || legacyMerchantId)}&amount=${encodeURIComponent(amountInSelectedCurrency.toFixed(2))}&currency=${encodeURIComponent(selectedPayCurrency?.code || "PI")}&note=${encodeURIComponent(checkoutMemo)}&checkout_session=${encodeURIComponent(resolvedSessionToken)}&checkout_customer_name=${encodeURIComponent(customerName)}&checkout_customer_email=${encodeURIComponent(customerEmail)}&checkout_customer_phone=${encodeURIComponent(customerPhone)}&checkout_customer_address=${encodeURIComponent(customerAddress)}`;
   const walletPayQrValue =
     typeof window !== "undefined"
       ? `${window.location.origin}${walletPayUrl}`
@@ -382,7 +425,10 @@ const MerchantCheckoutPage = () => {
           <X className="h-5 w-5 text-foreground" />
         </button>
         <div className="mx-3 h-7 w-px bg-border" />
-        <p className="text-xl font-medium text-foreground">Pay</p>
+        <p className="flex items-center gap-2 text-xl font-medium text-foreground">
+          <ShoppingCart className="h-5 w-5" />
+          Checkout
+        </p>
         <button
           type="button"
           onClick={() => setShowInstructions(true)}
@@ -561,13 +607,41 @@ const MerchantCheckoutPage = () => {
                   >
                     {currencies.map((currencyOption) => (
                       <option key={currencyOption.code} value={currencyOption.code}>
-                        {`${currencyOption.flag ? `${currencyOption.flag} ` : ""}PI ${currencyOption.code} - ${currencyOption.name}`}
+                        {`${currencyOption.flag ? `${currencyOption.flag} ` : ""}${getPiCodeLabel(currencyOption.code)} - ${currencyOption.name}`}
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-muted-foreground" />
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">Includes Pure Pi (PI) and all supported OpenPay currencies.</p>
+              </div>
+
+              <div className="mt-3 space-y-2 rounded-md border border-border p-3">
+                <p className="text-sm font-semibold text-foreground">Customer details (for receipt)</p>
+                <Input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Full name"
+                  className="h-11 rounded-md"
+                />
+                <Input
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="Email"
+                  className="h-11 rounded-md"
+                />
+                <Input
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="Phone"
+                  className="h-11 rounded-md"
+                />
+                <Input
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  placeholder="Address"
+                  className="h-11 rounded-md"
+                />
               </div>
 
               <div className="mt-4 border-t border-border pt-4">
@@ -624,12 +698,24 @@ const MerchantCheckoutPage = () => {
             </div>
 
             {paid && (
-              <div className="mt-3 rounded-2xl border border-paypal-blue/35 bg-paypal-blue/5 p-3 text-sm text-paypal-dark">
-                {linkSessionMeta?.confirmation_message || "Payment completed"}
-                {transactionId ? ` | TX: ${transactionId}` : ""}.
-                <button onClick={() => navigate("/dashboard")} className="ml-2 font-semibold text-paypal-blue">
-                  Go to dashboard
-                </button>
+              <div className="mt-4 rounded-2xl border border-paypal-blue/35 bg-paypal-blue/5 p-4 text-paypal-dark">
+                <p className="text-lg font-semibold">Thank you. Payment completed.</p>
+                <p className="mt-1 text-sm">
+                  {linkSessionMeta?.confirmation_message || "Your payment was processed successfully."}
+                </p>
+                {!!transactionId && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Transaction ID: <span className="font-mono text-foreground">{transactionId}</span>
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" className="h-9 rounded-lg" onClick={() => setReceiptOpen(true)}>
+                    View receipt
+                  </Button>
+                  <Button className="h-9 rounded-lg bg-paypal-blue text-white hover:bg-[#004dc5]" onClick={() => navigate("/merchant-onboarding")}>
+                    Merchant dashboard
+                  </Button>
+                </div>
               </div>
             )}
 

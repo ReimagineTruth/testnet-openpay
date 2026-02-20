@@ -40,7 +40,18 @@ type MerchantPayment = {
   status: string;
   created_at: string;
 };
-type MerchantSession = { id: string; session_token: string; status: string; key_mode: Mode; currency: string; total_amount: number; customer_name: string | null; customer_email: string | null; created_at: string };
+type MerchantSession = {
+  id: string;
+  session_token: string;
+  status: string;
+  key_mode: Mode;
+  currency: string;
+  total_amount: number;
+  customer_name: string | null;
+  customer_email: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
 
 type CustomerProfile = { id: string; full_name: string; username: string | null };
 const PURE_PI_ICON_URL = "https://i.ibb.co/BV8PHjB4/Pi-200x200.png";
@@ -113,13 +124,16 @@ const MerchantOnboardingPage = () => {
     const map = new Map<string, { code: string; name: string; flag: string }>();
     currencies.forEach((item) => {
       const code = (item.code || "").toUpperCase();
-      if (code.length !== 3 || map.has(code)) return;
+      if ((code !== "PI" && code.length !== 3) || map.has(code)) return;
       map.set(code, {
         code,
         name: item.name || code,
         flag: item.flag || "PI",
       });
     });
+    if (!map.has("PI")) {
+      map.set("PI", { code: "PI", name: "Pure Pi", flag: "PI" });
+    }
     const list = Array.from(map.values());
     list.sort((a, b) => {
       if (a.code === "PI") return -1;
@@ -174,7 +188,7 @@ const MerchantOnboardingPage = () => {
       db.from("merchant_api_keys").select("id, key_mode, key_name, publishable_key, secret_key_last4, is_active, created_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
       db.from("merchant_products").select("id, product_code, product_name, product_description, unit_amount, currency, is_active").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
       db.from("merchant_payments").select("id, session_id, buyer_user_id, transaction_id, amount, currency, api_key_id, key_mode, payment_link_id, payment_link_token, status, created_at").eq("merchant_user_id", uid),
-      db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, customer_name, customer_email, created_at").eq("merchant_user_id", uid),
+      db.from("merchant_checkout_sessions").select("id, session_token, status, key_mode, currency, total_amount, customer_name, customer_email, metadata, created_at").eq("merchant_user_id", uid),
       db.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
       db.from("app_notifications").select("id", { count: "exact", head: true }).eq("user_id", uid).is("read_at", null),
       db.rpc("get_my_merchant_analytics", { p_mode: selectedMode, p_days: 30 }),
@@ -577,8 +591,11 @@ const MerchantOnboardingPage = () => {
                 {modePayments.map((p) => {
                   const customer = customersById[p.buyer_user_id];
                   const session = sessionsById[p.session_id];
+                  const sessionMetadata = (session?.metadata || {}) as Record<string, unknown>;
                   const customerDisplayName = session?.customer_name || customer?.full_name || customer?.username || p.buyer_user_id.slice(0, 8);
                   const customerEmail = session?.customer_email || "";
+                  const customerPhone = typeof sessionMetadata.customer_phone === "string" ? sessionMetadata.customer_phone : "";
+                  const customerAddress = typeof sessionMetadata.customer_address === "string" ? sessionMetadata.customer_address : "";
                   const key = p.api_key_id ? apiKeysById[p.api_key_id] : null;
                   const keyDisplay = key ? `${key.key_name} (****${key.secret_key_last4})` : `${p.key_mode} key`;
                   const linkDisplay = p.payment_link_token ? p.payment_link_token : "Direct checkout";
@@ -589,6 +606,8 @@ const MerchantOnboardingPage = () => {
                       <td className="py-2 pr-3">
                         <p className="font-medium text-slate-900">{customerDisplayName}</p>
                         {!!customerEmail && <p className="text-xs text-muted-foreground">{customerEmail}</p>}
+                        {!!customerPhone && <p className="text-xs text-muted-foreground">Phone: {customerPhone}</p>}
+                        {!!customerAddress && <p className="text-xs text-muted-foreground">Address: {customerAddress}</p>}
                         {!customerEmail && customer?.username && <p className="text-xs text-muted-foreground">@{customer.username}</p>}
                       </td>
                       <td className="py-2 pr-3">
@@ -611,7 +630,11 @@ const MerchantOnboardingPage = () => {
             {modePayments.map((p) => {
               const customer = customersById[p.buyer_user_id];
               const session = sessionsById[p.session_id];
+              const sessionMetadata = (session?.metadata || {}) as Record<string, unknown>;
               const customerDisplayName = session?.customer_name || customer?.full_name || customer?.username || p.buyer_user_id.slice(0, 8);
+              const customerEmail = session?.customer_email || "";
+              const customerPhone = typeof sessionMetadata.customer_phone === "string" ? sessionMetadata.customer_phone : "";
+              const customerAddress = typeof sessionMetadata.customer_address === "string" ? sessionMetadata.customer_address : "";
               const key = p.api_key_id ? apiKeysById[p.api_key_id] : null;
               const keyDisplay = key ? `${key.key_name} (****${key.secret_key_last4})` : `${p.key_mode} key`;
               const linkDisplay = p.payment_link_token ? p.payment_link_token : "Direct checkout";
@@ -620,6 +643,9 @@ const MerchantOnboardingPage = () => {
                 <div key={p.id} className="rounded-xl border border-border p-3">
                   <p className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleString()}</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">{customerDisplayName}</p>
+                  {!!customerEmail && <p className="mt-1 text-xs text-muted-foreground">{customerEmail}</p>}
+                  {!!customerPhone && <p className="mt-1 text-xs text-muted-foreground">Phone: {customerPhone}</p>}
+                  {!!customerAddress && <p className="mt-1 text-xs text-muted-foreground">Address: {customerAddress}</p>}
                   <p className="mt-1 text-xs text-slate-700">{getPiCodeLabel((p.currency || "").toUpperCase())} {Number(p.amount).toFixed(2)} · {p.status}</p>
                   <p className="mt-1 truncate font-mono text-xs text-muted-foreground" title={linkDisplay}>Link: {shortenValue(linkDisplay, 14, 8)}</p>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{keyDisplay}</p>
@@ -642,14 +668,19 @@ const MerchantOnboardingPage = () => {
               const c = customersById[id];
               const latestPayment = modePayments.find((payment) => payment.buyer_user_id === id);
               const latestSession = latestPayment ? sessionsById[latestPayment.session_id] : undefined;
+              const sessionMetadata = (latestSession?.metadata || {}) as Record<string, unknown>;
               const customerDisplayName = latestSession?.customer_name || c?.full_name || "OpenPay Customer";
               const customerEmail = latestSession?.customer_email || "";
+              const customerPhone = typeof sessionMetadata.customer_phone === "string" ? sessionMetadata.customer_phone : "";
+              const customerAddress = typeof sessionMetadata.customer_address === "string" ? sessionMetadata.customer_address : "";
 
               return (
                 <div key={id} className="flex items-center justify-between rounded-xl border border-border p-3">
                   <div>
                     <p className="font-medium text-slate-900">{customerDisplayName}</p>
                     {!!customerEmail && <p className="text-xs text-muted-foreground">{customerEmail}</p>}
+                    {!!customerPhone && <p className="text-xs text-muted-foreground">Phone: {customerPhone}</p>}
+                    {!!customerAddress && <p className="text-xs text-muted-foreground">Address: {customerAddress}</p>}
                     {!customerEmail && <p className="text-xs text-muted-foreground">@{c?.username || id.slice(0, 8)}</p>}
                   </div>
                   <p className="text-xs text-muted-foreground">{modePayments.filter((p) => p.buyer_user_id === id).length} payments</p>
@@ -683,6 +714,14 @@ const MerchantOnboardingPage = () => {
               <p className="text-xs text-muted-foreground">Wallet balance</p>
               <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {walletBalance.toFixed(2)}</p>
             </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button className="h-10 rounded-lg" onClick={() => navigate("/dashboard")}>
+              Open Wallet
+            </Button>
+            <Button variant="outline" className="h-10 rounded-lg" onClick={() => navigate("/dashboard")}>
+              Move to Savings
+            </Button>
           </div>
         </div>
       );

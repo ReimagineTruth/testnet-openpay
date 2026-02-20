@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
@@ -6,73 +6,36 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/contexts/CurrencyContext";
 
-type LedgerTransaction = {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
+type PublicLedgerEntry = {
   amount: number;
   note: string | null;
   status: string;
-  created_at: string;
+  occurred_at: string;
+  event_type: string;
 };
 
 const PAGE_SIZE = 30;
-const CORE_ADMIN_USERNAMES = new Set(["openpay", "wainfoundation"]);
 
 const PublicLedgerPage = () => {
   const navigate = useNavigate();
   const { format: formatCurrency } = useCurrency();
-  const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
+  const [entries, setEntries] = useState<PublicLedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [piEnabled, setPiEnabled] = useState<boolean>(true);
 
   const loadPage = async (nextOffset = 0) => {
     setLoading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/signin");
-        return;
-      }
-
-      setUserId(user.id);
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("id", user.id)
-        .maybeSingle();
-      const normalizedUsername = String(profile?.username || "").trim().toLowerCase();
-      const normalizedEmailLocal = String(user.email || "").split("@")[0].trim().toLowerCase();
-      if (!CORE_ADMIN_USERNAMES.has(normalizedUsername) && !CORE_ADMIN_USERNAMES.has(normalizedEmailLocal)) {
-        toast.error("Ledger access is restricted to @openpay and @wainfoundation");
-        navigate("/dashboard", { replace: true });
-        return;
-      }
-      const hasPiAuth = Boolean((user.user_metadata as Record<string, unknown> | undefined)?.pi_uid);
-      setPiEnabled(hasPiAuth);
-      if (!hasPiAuth) {
-        setTransactions([]);
-        setHasMore(false);
-        setOffset(0);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("id, sender_id, receiver_id, amount, note, status, created_at")
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order("created_at", { ascending: false })
-        .range(nextOffset, nextOffset + PAGE_SIZE - 1);
+      const { data, error } = await supabase.rpc("get_public_ledger", {
+        p_limit: PAGE_SIZE,
+        p_offset: nextOffset,
+      });
 
       if (error) throw new Error(error.message || "Failed to load ledger.");
 
-      const rows = (data || []) as LedgerTransaction[];
-      setTransactions(rows);
+      const rows = (data || []) as PublicLedgerEntry[];
+      setEntries(rows);
       setOffset(nextOffset);
       setHasMore(rows.length === PAGE_SIZE);
     } catch (err) {
@@ -84,30 +47,18 @@ const PublicLedgerPage = () => {
 
   useEffect(() => {
     loadPage(0);
-  }, [navigate]);
-
-  const rows = useMemo(
-    () =>
-      transactions.map((tx) => ({
-        ...tx,
-        is_sent: tx.sender_id === userId,
-        is_topup: tx.sender_id === tx.receiver_id,
-      })),
-    [transactions, userId],
-  );
+  }, []);
 
   return (
     <div className="min-h-screen bg-background px-4 pt-4 pb-10">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate("/menu")} aria-label="Back to menu">
+          <button onClick={() => navigate("/")} aria-label="Back to home">
             <ArrowLeft className="h-6 w-6 text-foreground" />
           </button>
           <div>
             <h1 className="text-xl font-bold text-paypal-dark">Public Ledger</h1>
-            <p className="text-xs text-muted-foreground">
-              Pi-auth account ledger. Transactions only, IDs hidden for safety.
-            </p>
+            <p className="text-xs text-muted-foreground">Public transaction history. User IDs are not shown.</p>
           </div>
         </div>
         <button
@@ -120,32 +71,23 @@ const PublicLedgerPage = () => {
         </button>
       </div>
 
-      {!piEnabled && !loading ? (
-        <p className="py-12 text-center text-muted-foreground">
-          Public ledger is available only for Pi-auth accounts.
-        </p>
-      ) : rows.length === 0 && !loading ? (
+      {entries.length === 0 && !loading ? (
         <p className="py-12 text-center text-muted-foreground">No ledger transactions yet.</p>
       ) : (
         <div className="paypal-surface divide-y divide-border/70 rounded-3xl">
-          {rows.map((row) => (
-            <div key={row.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+          {entries.map((row, index) => (
+            <div key={`${row.occurred_at}-${index}`} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-semibold text-foreground">
-                  {row.is_topup ? "Top up" : row.is_sent ? "Payment sent" : "Payment received"}
-                </p>
+                <p className="font-semibold text-foreground">Transaction</p>
                 <p className="text-xs text-muted-foreground">
-                  {format(new Date(row.created_at), "MMM d, yyyy HH:mm")} • transactions
+                  {format(new Date(row.occurred_at), "MMM d, yyyy HH:mm")} • {row.event_type}
                 </p>
                 {row.note && <p className="text-xs text-muted-foreground">{row.note}</p>}
                 <p className="text-xs text-muted-foreground">Status: {row.status || "unknown"}</p>
               </div>
               <div className="text-right">
-                <p className={`font-semibold ${row.is_sent && !row.is_topup ? "text-red-500" : "text-paypal-success"}`}>
-                  {row.is_sent && !row.is_topup ? "-" : "+"}
-                  {formatCurrency(row.amount)}
-                </p>
-                <p className="text-xs text-muted-foreground">Record ID hidden</p>
+                <p className="font-semibold text-paypal-success">{formatCurrency(row.amount)}</p>
+                <p className="text-xs text-muted-foreground">Public record</p>
               </div>
             </div>
           ))}
@@ -156,14 +98,14 @@ const PublicLedgerPage = () => {
         <button
           className="paypal-surface h-9 rounded-full px-4 text-sm font-semibold text-foreground disabled:opacity-50"
           onClick={() => loadPage(Math.max(0, offset - PAGE_SIZE))}
-          disabled={loading || offset === 0 || !piEnabled}
+          disabled={loading || offset === 0}
         >
           Previous
         </button>
         <button
           className="paypal-surface h-9 rounded-full px-4 text-sm font-semibold text-foreground disabled:opacity-50"
           onClick={() => loadPage(offset + PAGE_SIZE)}
-          disabled={loading || !hasMore || !piEnabled}
+          disabled={loading || !hasMore}
         >
           Next
         </button>

@@ -45,9 +45,16 @@ const RequestMoney = () => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [scanError, setScanError] = useState("");
   const [accountLookupResult, setAccountLookupResult] = useState<Profile | null>(null);
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    | { type: "create"; payer: Profile; amount: number; note: string }
+    | { type: "pay"; request: PaymentRequest; requester: Profile | null }
+    | null
+  >(null);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, Profile>();
@@ -305,7 +312,7 @@ const RequestMoney = () => {
     };
   }, [navigate, showScanner, userId]);
 
-  const handleCreate = async () => {
+  const submitCreate = async () => {
     if (!userId || !payerId) {
       toast.error("Select who you are requesting from");
       return;
@@ -340,7 +347,7 @@ const RequestMoney = () => {
     await loadData();
   };
 
-  const handlePay = async (request: PaymentRequest) => {
+  const submitPay = async (request: PaymentRequest) => {
     setLoading(true);
     const { error } = await supabase.functions.invoke("send-money", {
       body: {
@@ -372,6 +379,50 @@ const RequestMoney = () => {
     await loadData();
   };
 
+  const handleCreate = () => {
+    if (!payerId || !selectedPayer) {
+      toast.error("Select who you are requesting from");
+      return;
+    }
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+
+    setConfirmAction({
+      type: "create",
+      payer: selectedPayer,
+      amount: parsedAmount,
+      note: note.trim(),
+    });
+    setConfirmModalOpen(true);
+  };
+
+  const handlePay = (request: PaymentRequest) => {
+    setConfirmAction({
+      type: "pay",
+      request,
+      requester: profileMap.get(request.requester_id) || null,
+    });
+    setConfirmModalOpen(true);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction || loading) return;
+
+    if (confirmAction.type === "create") {
+      await submitCreate();
+    } else {
+      await submitPay(confirmAction.request);
+    }
+
+    setConfirmModalOpen(false);
+    setConfirmAction(null);
+  };
+
+  const getInitials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
   const handleReject = async (id: string) => {
     const { error } = await supabase
       .from("payment_requests")
@@ -388,11 +439,16 @@ const RequestMoney = () => {
 
   return (
     <div className="min-h-screen bg-background pb-8">
-      <div className="flex items-center gap-3 px-4 pt-4 mb-4">
-        <button onClick={() => navigate("/menu")}>
-          <ArrowLeft className="w-6 h-6 text-foreground" />
-        </button>
-        <h1 className="text-xl font-bold text-foreground">Request Payment</h1>
+      <div className="flex items-center justify-between gap-3 px-4 pt-4 mb-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/menu")}>
+            <ArrowLeft className="w-6 h-6 text-foreground" />
+          </button>
+          <h1 className="text-xl font-bold text-foreground">Request Payment</h1>
+        </div>
+        <Button type="button" variant="outline" className="h-9 rounded-full px-4" onClick={() => setShowInstructions(true)}>
+          Instructions
+        </Button>
       </div>
 
       <div className="px-4 space-y-4">
@@ -624,6 +680,125 @@ const RequestMoney = () => {
           <div id="openpay-receive-scanner" className="min-h-[260px] overflow-hidden rounded-2xl border border-border" />
           {scanError && <p className="text-sm text-red-500">{scanError}</p>}
           <p className="text-xs text-muted-foreground">If camera does not open in Pi Browser, enable camera permission for this app and retry.</p>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogTitle className="text-lg font-semibold text-foreground">Request Payment Instructions</DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Review before sending or paying a request.
+          </DialogDescription>
+          <div className="space-y-2 text-sm text-foreground">
+            <p>1. Confirm the name and username before you send a request.</p>
+            <p>2. Verify the amount and note details carefully.</p>
+            <p>3. Only pay requests from people you know and expected to transact with.</p>
+            <p>4. If you do not recognize a request, reject or cancel it.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmModalOpen}
+        onOpenChange={(open) => {
+          if (loading) return;
+          setConfirmModalOpen(open);
+          if (!open) setConfirmAction(null);
+        }}
+      >
+        <DialogContent className="rounded-3xl">
+          <DialogTitle className="text-xl font-bold text-foreground">
+            {confirmAction?.type === "create" ? "Confirm request" : "Confirm payment"}
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Review the details before sending.
+          </DialogDescription>
+
+          {(confirmAction?.type === "create" || confirmAction?.type === "pay") && (
+            <div className="mt-3 flex items-center gap-3 rounded-2xl bg-secondary/70 px-3 py-2.5">
+              {(confirmAction.type === "create" ? confirmAction.payer.avatar_url : confirmAction.requester?.avatar_url) ? (
+                <img
+                  src={confirmAction.type === "create" ? confirmAction.payer.avatar_url || "" : confirmAction.requester?.avatar_url || ""}
+                  alt={confirmAction.type === "create" ? confirmAction.payer.full_name : confirmAction.requester?.full_name || "User"}
+                  className="h-12 w-12 rounded-full border border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-paypal-dark">
+                  <span className="text-sm font-bold text-primary-foreground">
+                    {getInitials(confirmAction.type === "create" ? confirmAction.payer.full_name : confirmAction.requester?.full_name || "User")}
+                  </span>
+                </div>
+              )}
+              <div>
+                <p className="font-semibold text-foreground">
+                  {confirmAction.type === "create" ? confirmAction.payer.full_name : confirmAction.requester?.full_name || "Unknown user"}
+                </p>
+                {(confirmAction.type === "create" ? confirmAction.payer.username : confirmAction.requester?.username) && (
+                  <p className="text-sm text-muted-foreground">
+                    @{confirmAction.type === "create" ? confirmAction.payer.username : confirmAction.requester?.username}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 space-y-2 rounded-2xl border border-border p-3 text-sm">
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Amount</span>
+              <span className="font-semibold text-foreground">
+                {confirmAction?.type === "create"
+                  ? formatCurrency(confirmAction.amount)
+                  : confirmAction?.type === "pay"
+                    ? formatCurrency(confirmAction.request.amount)
+                    : "-"}
+              </span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span className="text-muted-foreground">Converted (USD)</span>
+              <span className="font-semibold text-foreground">
+                ${confirmAction?.type === "create"
+                  ? confirmAction.amount.toFixed(2)
+                  : confirmAction?.type === "pay"
+                    ? Number(confirmAction.request.amount || 0).toFixed(2)
+                    : "0.00"}
+              </span>
+            </p>
+            <p className="flex items-start justify-between gap-2">
+              <span className="text-muted-foreground">Note</span>
+              <span className="max-w-[70%] break-all text-right text-foreground">
+                {confirmAction?.type === "create"
+                  ? confirmAction.note || "No note"
+                  : confirmAction?.type === "pay"
+                    ? confirmAction.request.note || "Payment request"
+                    : "No note"}
+              </span>
+            </p>
+          </div>
+
+          <p className="mt-3 rounded-md border border-paypal-light-blue/60 bg-[#edf3ff] px-2 py-1 text-xs text-paypal-blue">
+            Approve only if you know this user and expected this transaction. If you do not recognize the user or request, cancel now.
+          </p>
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              className="h-11 flex-1 rounded-2xl"
+              disabled={loading}
+              onClick={() => {
+                setConfirmModalOpen(false);
+                setConfirmAction(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="h-11 flex-1 rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]"
+              disabled={loading}
+              onClick={handleConfirmAction}
+            >
+              {loading ? "Processing..." : confirmAction?.type === "create" ? "Confirm & Send" : "Confirm & Pay"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
