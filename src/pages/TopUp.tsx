@@ -20,6 +20,7 @@ const TopUp = () => {
   const { currencies } = useCurrency();
   const usdCurrency = currencies.find((c) => c.code === "USD") ?? currencies[0];
   const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
+  const isPiBrowser = typeof navigator !== "undefined" && /pi\s?browser/i.test(navigator.userAgent || "");
   const parsedAmount = Number(amount);
   const safeAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
 
@@ -134,6 +135,14 @@ const TopUp = () => {
     }
   };
 
+  const topUpButtonLabel = loading
+    ? "Processing Pi payment..."
+    : !isPiBrowser
+      ? "Open in Pi Browser to top up"
+      : safeAmount > 0
+        ? `Pay with Pi: ${safeAmount.toFixed(2)} PI`
+        : "Enter amount to Pay with Pi";
+
   return (
     <div className="min-h-screen bg-background px-4 pt-4">
       <div className="flex items-center gap-3">
@@ -169,11 +178,14 @@ const TopUp = () => {
         <p className="mb-4 text-center text-xs text-muted-foreground">OpenPay uses a stable in-app value: 1 Pi = 1 USD.</p>
         <Button
           onClick={handleTopUp}
-          disabled={loading || safeAmount <= 0}
+          disabled={loading || safeAmount <= 0 || !isPiBrowser}
           className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
         >
-          {loading ? "Processing Pi payment..." : `Pay ${safeAmount.toFixed(2)} PI and add ${usdCurrency.symbol}${safeAmount.toFixed(2)} USD`}
+          {topUpButtonLabel}
         </Button>
+        <p className="mt-3 text-center text-xs text-muted-foreground">
+          Top up with Pi works only in Pi Browser. If you use OpenPay with email, sign in with the same email in Pi Browser first, then top up.
+        </p>
       </div>
 
       <TransactionReceipt
@@ -194,10 +206,11 @@ const TopUp = () => {
 
           <div className="rounded-2xl border border-border p-3 text-sm text-foreground">
             <p>1. You can top up your OpenPay balance only with Pi.</p>
-            <p>2. If you do not have Pi in your wallet, buy Pi in your Pi Wallet onramp first, then top up in OpenPay.</p>
-            <p>3. You can also exchange with another OpenPay user or merchant who accepts real-currency exchange.</p>
-            <p>4. OpenPay top up has no fee from OpenPay.</p>
-            <p>5. A merchant may add an exchange fee, similar to peer-to-peer exchange terms.</p>
+            <p>2. Top up payment works only in Pi Browser.</p>
+            <p>3. If you use OpenPay app with email login, sign in with the same email in Pi Browser first, then top up.</p>
+            <p>4. If you do not have Pi in your wallet, buy Pi in your Pi Wallet onramp first, then top up in OpenPay.</p>
+            <p>5. You can also exchange with another OpenPay user or merchant who accepts real-currency exchange.</p>
+            <p>6. OpenPay top up has no fee from OpenPay. A merchant may add exchange fee terms.</p>
           </div>
 
           <div className="rounded-2xl border border-paypal-light-blue/40 bg-paypal-light-blue/10 p-3 text-xs text-muted-foreground">

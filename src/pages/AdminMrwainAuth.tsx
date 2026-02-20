@@ -35,7 +35,7 @@ const AdminMrwainAuth = () => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setLoading(false);
       if (error) toast.error(error.message);
-      else navigate("/admin-dashboard");
+      else navigate("/dashboard");
       return;
     }
 
@@ -57,7 +57,7 @@ const AdminMrwainAuth = () => {
     if (error) toast.error(error.message);
     else {
       toast.success("Account created");
-      navigate("/admin-dashboard");
+      navigate("/dashboard");
     }
   };
 

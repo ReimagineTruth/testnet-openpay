@@ -16,6 +16,8 @@ import {
   saveAppSecuritySettings,
 } from "@/lib/appSecurity";
 import { loadUserPreferences, upsertUserPreferences } from "@/lib/userPreferences";
+import { APP_LANGUAGE_OPTIONS, applyStoredAppLanguage, getStoredAppLanguage } from "@/lib/appLanguage";
+import { AppThemeMode, getStoredAppTheme, persistAndApplyAppTheme } from "@/lib/appTheme";
 
 const SettingsPage = () => {
   const navigate = useNavigate();
@@ -32,6 +34,9 @@ const SettingsPage = () => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
+  const [appLanguage, setAppLanguage] = useState(getStoredAppLanguage());
+  const [qrPrintSettings, setQrPrintSettings] = useState<Record<string, unknown>>({});
+  const [themeMode, setThemeMode] = useState<AppThemeMode>(getStoredAppTheme());
 
   useEffect(() => {
     const load = async () => {
@@ -60,6 +65,14 @@ const SettingsPage = () => {
         const mergedSecurity = { ...prefs.security_settings, ...localSecurity };
         setSecuritySettings(mergedSecurity);
         saveAppSecuritySettings(user.id, mergedSecurity);
+        setQrPrintSettings(prefs.qr_print_settings || {});
+        const savedLanguage = String(prefs.qr_print_settings?.app_language || getStoredAppLanguage() || "en");
+        setAppLanguage(savedLanguage);
+        applyStoredAppLanguage(savedLanguage);
+        const savedThemeRaw = String(prefs.qr_print_settings?.app_theme || getStoredAppTheme());
+        const savedTheme: AppThemeMode = savedThemeRaw === "dark" ? "dark" : "light";
+        setThemeMode(savedTheme);
+        persistAndApplyAppTheme(savedTheme);
       } catch {
         // Keep local settings when DB preferences are unavailable.
       }
@@ -224,6 +237,34 @@ const SettingsPage = () => {
     else toast.error("Notification permission not granted");
   };
 
+  const handleChangeLanguage = async (languageCode: string) => {
+    const nextLanguage = languageCode || "en";
+    setAppLanguage(nextLanguage);
+    applyStoredAppLanguage(nextLanguage);
+
+    if (userId) {
+      const nextQrSettings = { ...qrPrintSettings, app_language: nextLanguage };
+      setQrPrintSettings(nextQrSettings);
+      upsertUserPreferences(userId, { qr_print_settings: nextQrSettings }).catch(() => undefined);
+    }
+
+    toast.success("Language updated. Reloading...");
+    window.setTimeout(() => window.location.reload(), 250);
+  };
+
+  const handleChangeTheme = async (nextTheme: AppThemeMode) => {
+    setThemeMode(nextTheme);
+    persistAndApplyAppTheme(nextTheme);
+
+    if (userId) {
+      const nextQrSettings = { ...qrPrintSettings, app_theme: nextTheme };
+      setQrPrintSettings(nextQrSettings);
+      upsertUserPreferences(userId, { qr_print_settings: nextQrSettings }).catch(() => undefined);
+    }
+
+    toast.success(`${nextTheme === "dark" ? "Dark" : "Light"} mode enabled`);
+  };
+
   return (
     <div className="min-h-screen bg-background px-4 pt-4">
       <div className="mb-5 flex items-center gap-3">
@@ -246,6 +287,39 @@ const SettingsPage = () => {
         >
           {notificationPermission === "granted" ? "Device notifications enabled" : "Enable device notifications"}
         </button>
+        <div className="mb-4">
+          <p className="mb-1 text-sm text-muted-foreground">Language (translate full app)</p>
+          <select
+            value={appLanguage}
+            onChange={(e) => void handleChangeLanguage(e.target.value)}
+            className="h-12 w-full rounded-2xl border border-white/70 bg-white px-3 text-sm"
+          >
+            {APP_LANGUAGE_OPTIONS.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="mb-4">
+          <p className="mb-1 text-sm text-muted-foreground">Theme</p>
+          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-secondary p-1">
+            <button
+              type="button"
+              onClick={() => void handleChangeTheme("light")}
+              className={`rounded-xl py-2 text-sm font-semibold ${themeMode === "light" ? "bg-white text-paypal-blue" : "text-muted-foreground"}`}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleChangeTheme("dark")}
+              className={`rounded-xl py-2 text-sm font-semibold ${themeMode === "dark" ? "bg-white text-paypal-blue" : "text-muted-foreground"}`}
+            >
+              Dark
+            </button>
+          </div>
+        </div>
         <div className="space-y-3">
           <div>
             <p className="mb-1 text-sm text-muted-foreground">Full Name</p>

@@ -20,6 +20,7 @@ const MenuPage = () => {
   const [welcomeClaimedAt, setWelcomeClaimedAt] = useState<string | null>(null);
   const [claimingWelcome, setClaimingWelcome] = useState(false);
   const [hasRemittanceAccess, setHasRemittanceAccess] = useState(false);
+  const [canOpenAdminDashboard, setCanOpenAdminDashboard] = useState(false);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -43,6 +44,11 @@ const MenuPage = () => {
         .select("username")
         .eq("id", user.id)
         .single();
+      const normalizedUsername = String(profile?.username || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^@/, "");
+      setCanOpenAdminDashboard(normalizedUsername === "openpay" || normalizedUsername === "wainfoundation");
       if (remittanceUiEnabled) {
         setHasRemittanceAccess(canAccessRemittanceMerchant(user.id, profile?.username || null));
       }
@@ -120,6 +126,9 @@ const MenuPage = () => {
         { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
         { icon: Store, label: "Merchant Portal", action: () => navigate("/merchant-onboarding") },
+        ...(canOpenAdminDashboard
+          ? [{ icon: ShieldCheck, label: "Admin Dashboard", action: () => navigate("/admin-dashboard") }]
+          : []),
         { icon: CreditCard, label: "OpenPay Virtual Card", action: () => navigate("/virtual-card") },
         { icon: FileText, label: "Payment Link Creator", action: () => navigate("/payment-links/create") },
         ...(remittanceUiEnabled

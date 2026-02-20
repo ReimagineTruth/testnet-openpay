@@ -53,6 +53,7 @@ import { useRealtimePushNotifications } from "./hooks/useRealtimePushNotificatio
 import AppSecurityGate from "./components/AppSecurityGate";
 import AppFooter from "./components/AppFooter";
 import BrandLogo from "./components/BrandLogo";
+import AppLanguageTranslate from "./components/AppLanguageTranslate";
 
 const queryClient = new QueryClient();
 
@@ -157,6 +158,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <CurrencyProvider>
         <TooltipProvider>
+          <AppLanguageTranslate />
           <Toaster />
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
