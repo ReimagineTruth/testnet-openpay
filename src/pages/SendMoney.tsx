@@ -277,7 +277,19 @@ const SendMoney = () => {
         p_customer_address: checkoutCustomerAddress || null,
       });
       if (completeError) {
-        toast.error(`Payment sent, but checkout completion failed: ${completeError.message}`);
+        const { error: fallbackCompleteError } = await (supabase as any).rpc("complete_merchant_checkout_with_transaction", {
+          p_session_token: checkoutSessionToken,
+          p_transaction_id: txId,
+          p_note: "Completed via OpenPay wallet /send flow",
+        });
+        if (fallbackCompleteError) {
+          toast.error(`Payment sent, but checkout completion failed: ${fallbackCompleteError.message}`);
+        } else {
+          toast.message("Payment completed, but customer checkout details were not saved.");
+          navigate(`/merchant-checkout?session=${encodeURIComponent(checkoutSessionToken)}&status=paid&tx=${encodeURIComponent(txId)}`, { replace: true });
+          setLoading(false);
+          return;
+        }
       } else {
         navigate(`/merchant-checkout?session=${encodeURIComponent(checkoutSessionToken)}&status=paid&tx=${encodeURIComponent(txId)}`, { replace: true });
         setLoading(false);
