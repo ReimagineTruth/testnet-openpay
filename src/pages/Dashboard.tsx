@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link, useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { Bell, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Users } from "lucide-react";
+import { Bell, CircleDollarSign, Copy, CreditCard, Eye, EyeOff, FileText, HandCoins, PiggyBank, QrCode, RefreshCw, Settings, Store, Users } from "lucide-react";
 import { format } from "date-fns";
 import CurrencySelector from "@/components/CurrencySelector";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -36,6 +36,7 @@ interface UserAccount {
 }
 
 type DashboardSection = "wallet" | "savings" | "credit" | "loans" | "cards";
+type MerchantMode = "sandbox" | "live";
 
 interface SavingsDashboard {
   wallet_balance: number;
@@ -94,6 +95,15 @@ interface LoanPaymentHistoryRow {
   payment_reference: string | null;
   note: string;
   created_at: string;
+}
+
+interface MerchantBalanceSnapshot {
+  gross_volume: number;
+  refunded_total: number;
+  transferred_total: number;
+  available_balance: number;
+  wallet_balance: number;
+  savings_balance: number;
 }
 
 const getGreeting = () => {
@@ -166,6 +176,13 @@ const Dashboard = () => {
   const [loanAddressLine, setLoanAddressLine] = useState("");
   const [loanCity, setLoanCity] = useState("");
   const [loanCountry, setLoanCountry] = useState("");
+  const [walletView, setWalletView] = useState<"personal" | "merchant">("personal");
+  const [merchantMode, setMerchantMode] = useState<MerchantMode>("live");
+  const [merchantBalances, setMerchantBalances] = useState<Record<MerchantMode, MerchantBalanceSnapshot | null>>({
+    sandbox: null,
+    live: null,
+  });
+  const [showMerchantFeatures, setShowMerchantFeatures] = useState(false);
   const navigate = useNavigate();
   const { format: formatCurrency, currency } = useCurrency();
   const currencyTag = currency.code === "PI" ? "PI" : `${currency.code} (Pi rate)`;
@@ -428,6 +445,26 @@ const Dashboard = () => {
       setBalanceHidden(hideBalance);
       setOnboardingStep(prefs.onboarding_step || 0);
       await loadSavingsAndLoan();
+      const [sandboxMerchantRes, liveMerchantRes] = await Promise.all([
+        (supabase as any).rpc("get_my_merchant_balance_overview", { p_mode: "sandbox" }),
+        (supabase as any).rpc("get_my_merchant_balance_overview", { p_mode: "live" }),
+      ]);
+      const toMerchantSnapshot = (row: any): MerchantBalanceSnapshot | null => {
+        const payload = Array.isArray(row) ? row[0] : row;
+        if (!payload) return null;
+        return {
+          gross_volume: Number(payload.gross_volume || 0),
+          refunded_total: Number(payload.refunded_total || 0),
+          transferred_total: Number(payload.transferred_total || 0),
+          available_balance: Number(payload.available_balance || 0),
+          wallet_balance: Number(payload.wallet_balance || 0),
+          savings_balance: Number(payload.savings_balance || 0),
+        };
+      };
+      setMerchantBalances({
+        sandbox: sandboxMerchantRes.error ? null : toMerchantSnapshot(sandboxMerchantRes.data),
+        live: liveMerchantRes.error ? null : toMerchantSnapshot(liveMerchantRes.data),
+      });
 
       if (!hasAcceptedAgreement) {
         setShowAgreement(true);
@@ -666,6 +703,11 @@ const Dashboard = () => {
     await loadDashboard();
   };
 
+  const selectedMerchantBalance = merchantBalances[merchantMode];
+  const walletCardAmount = walletView === "personal"
+    ? balance
+    : Number(selectedMerchantBalance?.available_balance ?? 0);
+
   return (
     <div className="min-h-screen overflow-x-hidden bg-background pb-28">
       <div className="flex items-center justify-between px-4 pt-5">
@@ -722,68 +764,89 @@ const Dashboard = () => {
       </div>
 
       {activeSection === "savings" && (
-        <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <PiggyBank className="h-5 w-5 text-paypal-blue" />
-            <h2 className="text-lg font-bold text-paypal-dark">Savings Dashboard</h2>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <div className="rounded-2xl border border-border/70 p-3">
-              <p className="text-xs text-muted-foreground">Wallet balance</p>
-              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(savings?.wallet_balance ?? balance)}</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 p-3">
-              <p className="text-xs text-muted-foreground">Savings balance</p>
-              <p className="text-lg font-bold">{balanceHidden ? "****" : formatCurrency(savings?.savings_balance ?? 0)}</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 p-3">
-              <p className="text-xs text-muted-foreground">Estimated APY</p>
-              <p className="text-lg font-bold text-paypal-success">{(savings?.apy ?? 0).toFixed(2)}%</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-border/70 p-3">
-              <p className="mb-2 text-sm font-semibold">Move wallet to savings</p>
-              <input value={savingsAmount} onChange={(e) => setSavingsAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
-              <button disabled={movingToSavings} onClick={handleMoveWalletToSavings} className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
-                {movingToSavings ? "Moving..." : "Move to Savings"}
-              </button>
-            </div>
-            <div className="rounded-2xl border border-border/70 p-3">
-              <p className="mb-2 text-sm font-semibold">Move savings to wallet</p>
-              <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
-              <button disabled={movingToWallet} onClick={handleMoveSavingsToWallet} className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
-                {movingToWallet ? "Moving..." : "Move to Wallet"}
-              </button>
-            </div>
-          </div>
-          <div className="mt-4 rounded-2xl border border-border/70 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-semibold">Recent savings activity</p>
-              {savingsTransfers.length > 0 && <p className="text-xs text-muted-foreground">{savingsTransfers.length} latest</p>}
-            </div>
-            {savingsTransfers.length === 0 ? (
-              <p className="py-3 text-sm text-muted-foreground">No savings activity yet.</p>
-            ) : (
-              <div className="divide-y divide-border/70 rounded-xl border border-border/70">
-                {savingsTransfers.map((entry) => {
-                  const isWalletToSavings = entry.direction === "wallet_to_savings";
-                  const directionLabel = isWalletToSavings ? "Move wallet to savings" : "Move savings to wallet";
-                  return (
-                    <div key={entry.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{directionLabel}</p>
-                        <p className="text-xs text-muted-foreground">{entry.created_at ? format(new Date(entry.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
-                        {entry.note && <p className="text-xs text-muted-foreground">{entry.note}</p>}
-                      </div>
-                      <p className={`text-sm font-semibold ${isWalletToSavings ? "text-paypal-success" : "text-paypal-blue"}`}>
-                        {balanceHidden ? "****" : `${isWalletToSavings ? "+" : "-"}${formatCurrency(entry.amount)}`}
-                      </p>
-                    </div>
-                  );
-                })}
+        <div className="mx-4 mt-4 space-y-4">
+          <div className="rounded-3xl border border-white/30 bg-gradient-to-br from-paypal-blue to-[#0073e6] p-6 shadow-xl shadow-[#004bba]/25">
+            <div className="flex items-center gap-3 text-white">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+                <PiggyBank className="h-5 w-5" />
               </div>
-            )}
+              <div>
+                <p className="text-3xl font-bold">{balanceHidden ? "****" : formatCurrency(savings?.savings_balance ?? 0)}</p>
+                <p className="text-sm text-white/85">Savings balance</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2 text-white/90 sm:grid-cols-3">
+              <div className="rounded-xl bg-white/10 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-white/80">Wallet balance</p>
+                <p className="text-sm font-semibold">{balanceHidden ? "****" : formatCurrency(savings?.wallet_balance ?? balance)}</p>
+              </div>
+              <div className="rounded-xl bg-white/10 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-white/80">Savings balance</p>
+                <p className="text-sm font-semibold">{balanceHidden ? "****" : formatCurrency(savings?.savings_balance ?? 0)}</p>
+              </div>
+              <div className="rounded-xl bg-white/10 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-white/80">Estimated APY</p>
+                <p className="text-sm font-semibold">{(savings?.apy ?? 0).toFixed(2)}%</p>
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={toggleBalanceHidden}
+                aria-label={balanceHidden ? "Show balance" : "Hide balance"}
+                className="paypal-surface flex h-9 items-center gap-2 rounded-full px-3 text-sm font-semibold text-foreground"
+              >
+                {balanceHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                {balanceHidden ? "Show balance" : "Hide balance"}
+              </button>
+            </div>
+          </div>
+
+          <div className="paypal-surface rounded-3xl p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-border/70 p-3">
+                <p className="mb-2 text-sm font-semibold">Move wallet to savings</p>
+                <input value={savingsAmount} onChange={(e) => setSavingsAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
+                <button disabled={movingToSavings} onClick={handleMoveWalletToSavings} className="h-10 w-full rounded-xl bg-paypal-blue text-sm font-semibold text-white">
+                  {movingToSavings ? "Moving..." : "Move to Savings"}
+                </button>
+              </div>
+              <div className="rounded-2xl border border-border/70 p-3">
+                <p className="mb-2 text-sm font-semibold">Move savings to wallet</p>
+                <input value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} type="number" min="0" step="0.01" placeholder={`Amount (${currency.code})`} className="mb-2 h-10 w-full rounded-xl border border-border px-3" />
+                <button disabled={movingToWallet} onClick={handleMoveSavingsToWallet} className="h-10 w-full rounded-xl border border-paypal-blue/40 bg-white text-sm font-semibold text-paypal-blue">
+                  {movingToWallet ? "Moving..." : "Move to Wallet"}
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 rounded-2xl border border-border/70 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold">Recent savings activity</p>
+                {savingsTransfers.length > 0 && <p className="text-xs text-muted-foreground">{savingsTransfers.length} latest</p>}
+              </div>
+              {savingsTransfers.length === 0 ? (
+                <p className="py-3 text-sm text-muted-foreground">No savings activity yet.</p>
+              ) : (
+                <div className="divide-y divide-border/70 rounded-xl border border-border/70">
+                  {savingsTransfers.map((entry) => {
+                    const isWalletToSavings = entry.direction === "wallet_to_savings";
+                    const directionLabel = isWalletToSavings ? "Move wallet to savings" : "Move savings to wallet";
+                    return (
+                      <div key={entry.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{directionLabel}</p>
+                          <p className="text-xs text-muted-foreground">{entry.created_at ? format(new Date(entry.created_at), "MMM d, yyyy h:mm a") : "-"}</p>
+                          {entry.note && <p className="text-xs text-muted-foreground">{entry.note}</p>}
+                        </div>
+                        <p className={`text-sm font-semibold ${isWalletToSavings ? "text-paypal-success" : "text-paypal-blue"}`}>
+                          {balanceHidden ? "****" : `${isWalletToSavings ? "+" : "-"}${formatCurrency(entry.amount)}`}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -975,13 +1038,89 @@ const Dashboard = () => {
       {activeSection === "wallet" && (
       <>
       <div className="mx-4 mt-4 rounded-3xl border border-white/30 bg-gradient-to-br from-paypal-blue to-[#0073e6] p-6 shadow-xl shadow-[#004bba]/25">
+        <div className="mb-4 inline-flex rounded-full bg-white/15 p-1">
+          <button
+            type="button"
+            onClick={() => setWalletView("personal")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+              walletView === "personal" ? "bg-white text-paypal-blue" : "text-white/90 hover:bg-white/10"
+            }`}
+          >
+            Personal wallet
+          </button>
+          <button
+            type="button"
+            onClick={() => setWalletView("merchant")}
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+              walletView === "merchant" ? "bg-white text-paypal-blue" : "text-white/90 hover:bg-white/10"
+            }`}
+          >
+            Merchant wallet
+          </button>
+        </div>
+
+        {walletView === "merchant" && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-full bg-white/15 p-1">
+              <button
+                type="button"
+                onClick={() => setMerchantMode("sandbox")}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  merchantMode === "sandbox" ? "bg-white text-paypal-blue" : "text-white/90 hover:bg-white/10"
+                }`}
+              >
+                Sandbox
+              </button>
+              <button
+                type="button"
+                onClick={() => setMerchantMode("live")}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  merchantMode === "live" ? "bg-white text-paypal-blue" : "text-white/90 hover:bg-white/10"
+                }`}
+              >
+                Live
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMerchantFeatures(true)}
+              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white transition hover:bg-white/25"
+            >
+              <Store className="h-3.5 w-3.5" />
+              Merchant features
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center gap-3 text-white">
           <BrandLogo className="h-8 w-8" />
           <div>
-            <p className="text-3xl font-bold">{balanceHidden ? "****" : formatCurrency(balance)}</p>
-            <p className="text-sm text-white/85">Balance · {currency.code === "PI" ? "PI" : `PI ${currency.code}`}</p>
+            <p className="text-3xl font-bold">{balanceHidden ? "****" : formatCurrency(walletCardAmount)}</p>
+            <p className="text-sm text-white/85">
+              {walletView === "personal"
+                ? `Balance - ${currency.code === "PI" ? "PI" : `PI ${currency.code}`}`
+                : `Merchant available (${merchantMode})`}
+            </p>
           </div>
         </div>
+
+        {walletView === "merchant" && (
+          <div className="mt-4 grid gap-2 text-white/90 sm:grid-cols-3">
+            <div className="rounded-xl bg-white/10 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-white/80">Incoming</p>
+              <p className="text-sm font-semibold">{balanceHidden ? "****" : formatCurrency(Number(selectedMerchantBalance?.gross_volume ?? 0))}</p>
+            </div>
+            <div className="rounded-xl bg-white/10 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-white/80">Refunded</p>
+              <p className="text-sm font-semibold">{balanceHidden ? "****" : formatCurrency(Number(selectedMerchantBalance?.refunded_total ?? 0))}</p>
+            </div>
+            <div className="rounded-xl bg-white/10 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-white/80">Transferred out</p>
+              <p className="text-sm font-semibold">{balanceHidden ? "****" : formatCurrency(Number(selectedMerchantBalance?.transferred_total ?? 0))}</p>
+            </div>
+          </div>
+        )}
+
         <div className="mt-4 flex justify-end">
           <button
             type="button"
@@ -994,7 +1133,6 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
-
       {userAccount && (
         <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
           <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:justify-between">
@@ -1158,6 +1296,50 @@ const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showMerchantFeatures} onOpenChange={setShowMerchantFeatures}>
+        <DialogContent className="rounded-3xl sm:max-w-md">
+          <DialogTitle className="text-xl font-bold text-foreground">Merchant features</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Open merchant tools quickly from dashboard.
+          </DialogDescription>
+          <div className="mt-2 grid gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 justify-start rounded-xl"
+              onClick={() => {
+                setShowMerchantFeatures(false);
+                navigate("/merchant-onboarding");
+              }}
+            >
+              Merchant Portal
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 justify-start rounded-xl"
+              onClick={() => {
+                setShowMerchantFeatures(false);
+                navigate("/merchant-pos");
+              }}
+            >
+              POS
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 justify-start rounded-xl"
+              onClick={() => {
+                setShowMerchantFeatures(false);
+                navigate("/payment-links/create");
+              }}
+            >
+              Checkout Link
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showAgreement} onOpenChange={() => undefined}>
         <DialogContent className="rounded-3xl sm:max-w-md">
           <DialogTitle className="text-xl font-bold text-foreground">Platform, User, and Merchant Protection Agreement</DialogTitle>
@@ -1248,3 +1430,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+

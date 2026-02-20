@@ -30,12 +30,16 @@ serve(async (req) => {
     if (inboundJobKey !== jobKey) return jsonResponse({ error: "Unauthorized job key" }, 401);
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-    const body = await req.json().catch(() => ({}));
-    const limit = Math.min(Math.max(Number((body as { limit?: number }).limit || 25), 1), 100);
+    const requestPayload: unknown = await req.json().catch(() => ({}));
+    const requestLimit =
+      typeof requestPayload === "object" && requestPayload !== null && "limit" in requestPayload
+        ? Number((requestPayload as { limit?: number }).limit)
+        : 25;
+    const limit = Math.min(Math.max(Number.isFinite(requestLimit) ? requestLimit : 25, 1), 100);
 
     const { data: jobs, error: jobsError } = await supabase
       .from("email_notifications_outbox")
-      .select("id, to_email, subject, body")
+      .select("id, to_email, subject, body, attempts")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(limit);
@@ -58,7 +62,7 @@ serve(async (req) => {
             from: fromEmail,
             to: [job.to_email],
             subject: job.subject,
-            text: job.body,
+            text: String(job.body || ""),
           }),
         });
 
@@ -72,7 +76,7 @@ serve(async (req) => {
           .update({
             status: "sent",
             sent_at: new Date().toISOString(),
-            attempts: 1,
+            attempts: Number(job.attempts || 0) + 1,
             last_error: null,
           })
           .eq("id", job.id);
@@ -84,7 +88,7 @@ serve(async (req) => {
           .from("email_notifications_outbox")
           .update({
             status: "failed",
-            attempts: 1,
+            attempts: Number(job.attempts || 0) + 1,
             last_error: errorMessage,
           })
           .eq("id", job.id);

@@ -620,7 +620,7 @@ const PaymentLinksCreatePage = () => {
             <div className="sticky top-[69px] h-[calc(100vh-69px)] px-6 py-6">
               <h3 className="mb-4 text-xl font-semibold text-foreground">Checkout</h3>
               <div className="h-full rounded-2xl border border-border bg-background p-4">
-                <div className="mx-auto max-w-sm rounded-xl border border-border bg-white p-4 shadow-sm">
+                <div className="mx-auto max-w-sm rounded-xl border border-border bg-card p-4 shadow-sm">
                   <div className="mb-3 flex items-center gap-2">
                     <BrandLogo className="h-5 w-5" />
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay</p>
@@ -673,7 +673,7 @@ const PaymentLinksCreatePage = () => {
                   onClick={() => setShowMenuSelection(false)}
                   aria-label="Close menu selection"
                 />
-                <div className="absolute left-0 top-12 z-30 w-56 rounded-xl border border-border bg-white p-2 shadow-xl">
+                <div className="absolute left-0 top-12 z-30 w-56 rounded-xl border border-border bg-card p-2 shadow-xl">
                   <button
                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
                     onClick={() => {
@@ -885,7 +885,7 @@ const PaymentLinksCreatePage = () => {
                   key={key}
                   type="button"
                   onClick={() => setShareTab(key)}
-                  className={`rounded-lg px-3 py-2 text-sm ${shareTab === key ? "bg-white font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`rounded-lg px-3 py-2 text-sm ${shareTab === key ? "bg-card font-semibold text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {label}
                 </button>
@@ -947,7 +947,7 @@ const PaymentLinksCreatePage = () => {
                 </Button>
                 <div className="mt-3 rounded-xl bg-secondary/20 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
-                  <div className="mx-auto mt-2 max-w-sm rounded-xl border border-border bg-white p-4 shadow-sm">
+                  <div className="mx-auto mt-2 max-w-sm rounded-xl border border-border bg-card p-4 shadow-sm">
                     <div className="mb-3 flex items-center gap-2">
                       <BrandLogo className="h-5 w-5" />
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay</p>
@@ -972,7 +972,7 @@ const PaymentLinksCreatePage = () => {
                   <Copy className="mr-1 h-4 w-4" />
                   Copy
                 </Button>
-                <div className="mt-3 rounded-xl border border-border bg-white p-2">
+                <div className="mt-3 rounded-xl border border-border bg-card p-2">
                   <p className="px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
                   <iframe
                     src={createdUrl}
@@ -999,7 +999,7 @@ const PaymentLinksCreatePage = () => {
                 </div>
                 <div className="mt-3 rounded-xl bg-secondary/20 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</p>
-                  <div className="mt-2 rounded-xl border border-border bg-white p-4">
+                  <div className="mt-2 rounded-xl border border-border bg-card p-4">
                     <p className="text-sm text-muted-foreground">Share this direct link in chat, app, social media, or website.</p>
                     <a
                       href={createdUrl}
@@ -1018,7 +1018,7 @@ const PaymentLinksCreatePage = () => {
               <div className="mt-4 rounded-2xl border border-border p-3">
                 <p className="text-sm font-semibold text-foreground">QR Code</p>
                 <p className="mt-1 text-xs text-muted-foreground">Customers can scan to pay instantly.</p>
-                <div className="mt-3 flex justify-center rounded-xl bg-white p-4">
+                <div className="mt-3 flex justify-center rounded-xl bg-card p-4">
                   <QRCodeSVG value={createdUrl} size={240} includeMargin imageSettings={qrImageSettings} level="H" />
                 </div>
                 <div className="mt-2 hidden">

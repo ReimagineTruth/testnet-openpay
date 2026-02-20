@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BrandLogo from "@/components/BrandLogo";
+import SplashScreen from "@/components/SplashScreen";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
@@ -461,7 +462,7 @@ const MerchantPosPage = () => {
   };
 
   if (loading) {
-    return <div className="min-h-screen bg-slate-100 px-4 py-6 text-sm text-muted-foreground">Loading OpenPay POS...</div>;
+    return <SplashScreen message="Loading OpenPay POS..." />;
   }
 
   const renderStatus = () => {
@@ -472,13 +473,13 @@ const MerchantPosPage = () => {
       return <p className="mt-3 flex items-center justify-center gap-2 text-rose-600"><XCircle className="h-4 w-4" /> Payment Failed</p>;
     }
     if (paymentStatus === "waiting") {
-      return <p className="mt-3 text-center text-sm text-slate-500">Waiting for payment...</p>;
+      return <p className="mt-3 text-center text-sm text-muted-foreground">Waiting for payment...</p>;
     }
     return null;
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-100 pb-8">
+    <div className="min-h-screen overflow-x-hidden bg-background pb-8">
       <style>{`
         @media print {
           body * {
@@ -523,16 +524,16 @@ const MerchantPosPage = () => {
       </header>
 
       <main className="mx-auto mt-4 grid w-full max-w-6xl gap-4 px-4 lg:grid-cols-[300px_1fr]">
-        <aside className="rounded-2xl border border-slate-200 bg-white p-3">
-          <h2 className="mb-3 text-lg font-bold text-slate-900">Dashboard</h2>
+        <aside className="rounded-2xl border border-border bg-card p-3">
+          <h2 className="mb-3 text-lg font-bold text-foreground">Dashboard</h2>
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-slate-200 p-2">
-              <p className="text-xs text-slate-500">Today total</p>
-              <p className="text-lg font-bold text-slate-900">{Number(dashboard?.today_total_received || 0).toFixed(2)} {selectedUnitLabel}</p>
+            <div className="rounded-xl border border-border p-2">
+              <p className="text-xs text-muted-foreground">Today total</p>
+              <p className="text-lg font-bold text-foreground">{Number(dashboard?.today_total_received || 0).toFixed(2)} {selectedUnitLabel}</p>
             </div>
-            <div className="rounded-xl border border-slate-200 p-2">
-              <p className="text-xs text-slate-500">Transactions</p>
-              <p className="text-lg font-bold text-slate-900">{dashboard?.today_transactions || 0}</p>
+            <div className="rounded-xl border border-border p-2">
+              <p className="text-xs text-muted-foreground">Transactions</p>
+              <p className="text-lg font-bold text-foreground">{dashboard?.today_transactions || 0}</p>
             </div>
           </div>
 
@@ -546,36 +547,36 @@ const MerchantPosPage = () => {
             <button onClick={() => setActiveView("refund")} className="flex w-full items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-left text-sm font-semibold text-white">
               <RotateCcw className="h-4 w-4" /> Refund / Cancel
             </button>
-            <button onClick={() => setActiveView("settings")} className="flex w-full items-center gap-2 rounded-xl bg-slate-200 px-3 py-2 text-left text-sm font-semibold text-slate-800">
+            <button onClick={() => setActiveView("settings")} className="flex w-full items-center gap-2 rounded-xl bg-muted px-3 py-2 text-left text-sm font-semibold text-foreground">
               <Settings className="h-4 w-4" /> Settings
             </button>
           </div>
         </aside>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+        <section className="rounded-2xl border border-border bg-card p-4">
           {(activeView === "home" || activeView === "receive") && (
             <div>
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <h3 className="text-2xl font-bold text-slate-900">Receive Payment</h3>
+                <h3 className="text-2xl font-bold text-foreground">Receive Payment</h3>
                 <Button
                   variant="outline"
-                  className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  className="h-9 rounded-lg border-border bg-card text-foreground hover:bg-muted"
                   onClick={() => setShowInstructions(true)}
                 >
                   <HelpCircle className="mr-2 h-4 w-4" /> POS Instructions
                 </Button>
                 <Button
                   variant="outline"
-                  className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  className="h-9 rounded-lg border-border bg-card text-foreground hover:bg-muted"
                   onClick={() => setShowApiKeyModal(true)}
                 >
                   Setup API Key
                 </Button>
-                <select value={mode} onChange={(e) => setMode(e.target.value as "sandbox" | "live")} className="ml-auto rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                <select value={mode} onChange={(e) => setMode(e.target.value as "sandbox" | "live")} className="ml-auto rounded-lg border border-border px-3 py-1.5 text-sm">
                   <option value="live">Live</option>
                   <option value="sandbox">Sandbox</option>
                 </select>
-                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border border-border px-3 py-1.5 text-sm">
                   {currencies.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.flag} {getPiCodeLabel(c.code)} - {c.name}
@@ -585,15 +586,15 @@ const MerchantPosPage = () => {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 p-3">
-                  <p className="text-xs text-slate-500">Enter amount</p>
-                  <div className="mt-1 rounded-xl border border-slate-300 px-3 py-2 text-3xl font-bold text-slate-900">{amountValue.toFixed(2)}</div>
+                <div className="rounded-2xl border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Enter amount</p>
+                  <div className="mt-1 rounded-xl border border-border px-3 py-2 text-3xl font-bold text-foreground">{amountValue.toFixed(2)}</div>
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "DEL"].map((key) => (
                       <button
                         key={key}
                         onClick={() => pressKey(key)}
-                        className="rounded-lg border border-slate-300 py-2 text-lg font-semibold text-slate-800 hover:bg-slate-100"
+                        className="rounded-lg border border-border py-2 text-lg font-semibold text-foreground hover:bg-muted"
                       >
                         {key}
                       </button>
@@ -624,9 +625,9 @@ const MerchantPosPage = () => {
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 p-3 text-center">
-                  <p className="text-sm font-semibold text-slate-800">Scan QR Code to Pay</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">{qrStoreName}</p>
+                <div className="rounded-2xl border border-border p-3 text-center">
+                  <p className="text-sm font-semibold text-foreground">Scan QR Code to Pay</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{qrStoreName}</p>
                   <div className="mt-3 flex justify-center">
                     <QRCodeSVG
                       value={qrDisplayValue}
@@ -641,10 +642,10 @@ const MerchantPosPage = () => {
                       }}
                     />
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     {normalizedAmount ? `${normalizedAmount} ${getPiCodeLabel(currency)}` : `Select amount and ${getPiCodeLabel(currency)}`}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">@{qrMerchantUsername}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">@{qrMerchantUsername}</p>
                   <div className="mt-3 flex justify-center gap-2">
                     <Button variant="outline" className="h-9 rounded-lg" onClick={copyQrValue}>
                       <Copy className="mr-2 h-4 w-4" /> Copy QR link
@@ -662,13 +663,13 @@ const MerchantPosPage = () => {
           {activeView === "history" && (
             <div>
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <h3 className="text-2xl font-bold text-slate-900">Transaction History</h3>
+                <h3 className="text-2xl font-bold text-foreground">Transaction History</h3>
                 <div className="ml-auto flex gap-2">
                   <div className="relative">
-                    <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                    <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} className="h-9 pl-8" placeholder="Search..." />
                   </div>
-                  <select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value as any)} className="h-9 rounded-lg border border-slate-300 px-3 text-sm">
+                  <select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value as any)} className="h-9 rounded-lg border border-border px-3 text-sm">
                     <option value="all">All</option>
                     <option value="succeeded">Completed</option>
                     <option value="refunded">Refunded</option>
@@ -681,39 +682,39 @@ const MerchantPosPage = () => {
                   <button
                     key={tx.payment_id}
                     onClick={() => setSelectedTx(tx)}
-                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-left hover:bg-slate-50"
+                    className="flex w-full items-center justify-between rounded-xl border border-border px-3 py-2 text-left hover:bg-muted"
                   >
                     <div>
-                      <p className="font-semibold text-slate-900">{tx.payer_name}</p>
-                      {!!tx.customer_email && <p className="text-xs text-slate-500">{tx.customer_email}</p>}
-                      <p className="text-xs text-slate-500">{new Date(tx.payment_created_at).toLocaleString()}</p>
+                      <p className="font-semibold text-foreground">{tx.payer_name}</p>
+                      {!!tx.customer_email && <p className="text-xs text-muted-foreground">{tx.customer_email}</p>}
+                      <p className="text-xs text-muted-foreground">{new Date(tx.payment_created_at).toLocaleString()}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-slate-900">{tx.amount.toFixed(2)} {tx.currency}</p>
+                      <p className="font-semibold text-foreground">{tx.amount.toFixed(2)} {tx.currency}</p>
                       <p className={`text-xs ${tx.payment_status === "refunded" ? "text-orange-600" : "text-emerald-600"}`}>{tx.payment_status}</p>
                     </div>
                   </button>
                 ))}
-                {!transactions.length && <p className="py-10 text-center text-sm text-slate-500">No transactions found.</p>}
+                {!transactions.length && <p className="py-10 text-center text-sm text-muted-foreground">No transactions found.</p>}
               </div>
             </div>
           )}
 
           {activeView === "refund" && (
             <div>
-              <h3 className="mb-3 text-2xl font-bold text-slate-900">Refund / Cancel</h3>
+              <h3 className="mb-3 text-2xl font-bold text-foreground">Refund / Cancel</h3>
               <div className="space-y-2">
                 {transactions
                   .filter((tx) => tx.payment_status === "succeeded")
                   .map((tx) => (
-                    <div key={tx.payment_id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                    <div key={tx.payment_id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
                       <div>
-                        <p className="font-semibold text-slate-900">{tx.payer_name}</p>
-                        {!!tx.customer_email && <p className="text-xs text-slate-500">{tx.customer_email}</p>}
-                        <p className="text-xs text-slate-500">{new Date(tx.payment_created_at).toLocaleString()}</p>
+                        <p className="font-semibold text-foreground">{tx.payer_name}</p>
+                        {!!tx.customer_email && <p className="text-xs text-muted-foreground">{tx.customer_email}</p>}
+                        <p className="text-xs text-muted-foreground">{new Date(tx.payment_created_at).toLocaleString()}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900">{tx.amount.toFixed(2)} {tx.currency}</p>
+                        <p className="text-sm font-semibold text-foreground">{tx.amount.toFixed(2)} {tx.currency}</p>
                         <Button
                           onClick={() => refundTransaction(tx)}
                           disabled={refunding}
@@ -725,7 +726,7 @@ const MerchantPosPage = () => {
                     </div>
                   ))}
                 {!transactions.some((tx) => tx.payment_status === "succeeded") && (
-                  <p className="py-10 text-center text-sm text-slate-500">No completed payments available for refund.</p>
+                  <p className="py-10 text-center text-sm text-muted-foreground">No completed payments available for refund.</p>
                 )}
               </div>
             </div>
@@ -733,10 +734,10 @@ const MerchantPosPage = () => {
 
           {activeView === "settings" && (
             <div>
-              <h3 className="mb-3 text-2xl font-bold text-slate-900">Settings / Offline Mode</h3>
+              <h3 className="mb-3 text-2xl font-bold text-foreground">Settings / Offline Mode</h3>
               <div className="space-y-3">
                 <div className={`rounded-xl border px-3 py-2 ${hasActiveApiKey ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"}`}>
-                  <p className="text-sm font-medium text-slate-800">API key requirement ({mode})</p>
+                  <p className="text-sm font-medium text-foreground">API key requirement ({mode})</p>
                   <p className={`mt-1 text-xs ${hasActiveApiKey ? "text-emerald-700" : "text-rose-700"}`}>
                     {hasActiveApiKey
                       ? `Configured key: ${configuredApiKeyName || "Active key"}. POS transactions are linked to Merchant Portal.`
@@ -757,19 +758,19 @@ const MerchantPosPage = () => {
                     Open Merchant Portal
                   </Button>
                 </div>
-                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
-                  <span className="text-sm font-medium text-slate-800">Enable offline mode</span>
+                <label className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+                  <span className="text-sm font-medium text-foreground">Enable offline mode</span>
                   <input type="checkbox" checked={offlineMode} onChange={(e) => setOfflineMode(e.target.checked)} />
                 </label>
-                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
-                  <span className="text-sm font-medium text-slate-800">QR code style</span>
-                  <select value={qrStyle} onChange={(e) => setQrStyle(e.target.value as "dynamic" | "static")} className="rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                <label className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+                  <span className="text-sm font-medium text-foreground">QR code style</span>
+                  <select value={qrStyle} onChange={(e) => setQrStyle(e.target.value as "dynamic" | "static")} className="rounded-lg border border-border px-2 py-1 text-sm">
                     <option value="dynamic">Dynamic</option>
                     <option value="static">Static</option>
                   </select>
                 </label>
-                <div className="rounded-xl border border-slate-200 px-3 py-2">
-                  <p className="mb-1 text-sm font-medium text-slate-800">Store name (shown above QR)</p>
+                <div className="rounded-xl border border-border px-3 py-2">
+                  <p className="mb-1 text-sm font-medium text-foreground">Store name (shown above QR)</p>
                   <Input
                     value={storeName}
                     onChange={(e) => setStoreName(e.target.value)}
@@ -777,21 +778,21 @@ const MerchantPosPage = () => {
                     className="h-9"
                   />
                 </div>
-                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
-                  <span className="text-sm font-medium text-slate-800">Notification sound</span>
+                <label className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+                  <span className="text-sm font-medium text-foreground">Notification sound</span>
                   <input type="checkbox" checked={notificationSound} onChange={(e) => setNotificationSound(e.target.checked)} />
                 </label>
-                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
-                  <span className="text-sm font-medium text-slate-800">Notification vibration</span>
+                <label className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+                  <span className="text-sm font-medium text-foreground">Notification vibration</span>
                   <input type="checkbox" checked={notificationVibration} onChange={(e) => setNotificationVibration(e.target.checked)} />
                 </label>
-                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
-                  <span className="text-sm font-medium text-slate-800">Inventory linking</span>
+                <label className="flex items-center justify-between rounded-xl border border-border px-3 py-2">
+                  <span className="text-sm font-medium text-foreground">Inventory linking</span>
                   <input type="checkbox" checked={inventoryLinking} onChange={(e) => setInventoryLinking(e.target.checked)} />
                 </label>
-                <div className="rounded-xl border border-slate-200 px-3 py-2">
-                  <p className="text-sm font-medium text-slate-800">Offline queue</p>
-                  <p className="mt-1 text-xs text-slate-500">{offlineQueue.length} pending payment request(s)</p>
+                <div className="rounded-xl border border-border px-3 py-2">
+                  <p className="text-sm font-medium text-foreground">Offline queue</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{offlineQueue.length} pending payment request(s)</p>
                   <Button
                     variant="outline"
                     className="mt-2 h-9 rounded-lg"
@@ -808,7 +809,7 @@ const MerchantPosPage = () => {
       </main>
 
       <div id="pos-print-receipt" className="hidden print:flex">
-        <div className="w-[302px] bg-white px-4 py-3 font-mono text-[11px] leading-4 text-black">
+        <div className="w-[302px] bg-card px-4 py-3 font-mono text-[11px] leading-4 text-black">
           <p className="text-center text-[15px] font-bold">OpenPay Merchant POS</p>
           <p className="text-center">{qrStoreName}</p>
           <p className="text-center">@{dashboard?.merchant_username || "merchant"}</p>
@@ -843,17 +844,17 @@ const MerchantPosPage = () => {
 
       {selectedTx && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 md:items-center md:justify-center">
-          <div className="w-full max-w-md rounded-2xl bg-white p-4">
+          <div className="w-full max-w-md rounded-2xl bg-card p-4">
             <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-lg font-bold text-slate-900">Transaction Details</h4>
-              <button onClick={() => setSelectedTx(null)} className="rounded-md border border-slate-200 px-2 py-1 text-xs">Close</button>
+              <h4 className="text-lg font-bold text-foreground">Transaction Details</h4>
+              <button onClick={() => setSelectedTx(null)} className="rounded-md border border-border px-2 py-1 text-xs">Close</button>
             </div>
-            <p className="text-sm text-slate-700">Payer: {selectedTx.payer_name}</p>
-            {!!selectedTx.customer_email && <p className="text-sm text-slate-700">Email: {selectedTx.customer_email}</p>}
-            <p className="text-sm text-slate-700">Amount: {selectedTx.amount.toFixed(2)} {selectedTx.currency}</p>
-            <p className="text-sm text-slate-700">Status: {selectedTx.payment_status}</p>
-            <p className="text-sm text-slate-700">Session: {selectedTx.session_token}</p>
-            <p className="text-xs text-slate-500">{new Date(selectedTx.payment_created_at).toLocaleString()}</p>
+            <p className="text-sm text-foreground">Payer: {selectedTx.payer_name}</p>
+            {!!selectedTx.customer_email && <p className="text-sm text-foreground">Email: {selectedTx.customer_email}</p>}
+            <p className="text-sm text-foreground">Amount: {selectedTx.amount.toFixed(2)} {selectedTx.currency}</p>
+            <p className="text-sm text-foreground">Status: {selectedTx.payment_status}</p>
+            <p className="text-sm text-foreground">Session: {selectedTx.session_token}</p>
+            <p className="text-xs text-muted-foreground">{new Date(selectedTx.payment_created_at).toLocaleString()}</p>
             {selectedTx.payment_status === "succeeded" && (
               <Button
                 onClick={() => refundTransaction(selectedTx)}
@@ -869,11 +870,11 @@ const MerchantPosPage = () => {
 
       <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
         <DialogContent className="max-w-md rounded-2xl">
-          <DialogTitle className="text-lg font-bold text-slate-900">POS Instructions</DialogTitle>
-          <DialogDescription className="text-sm text-slate-600">
+          <DialogTitle className="text-lg font-bold text-foreground">POS Instructions</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
             How to generate and print a POS payment receipt with QR.
           </DialogDescription>
-          <div className="space-y-2 text-sm text-slate-700">
+          <div className="space-y-2 text-sm text-foreground">
             <p>1. Enter amount using keypad and select currency.</p>
             <p>2. Click Generate QR Code to prepare payment details.</p>
             <p>3. Click Print Receipt to print supermarket-style ticket.</p>
@@ -885,8 +886,8 @@ const MerchantPosPage = () => {
 
       <Dialog open={showApiKeyModal} onOpenChange={setShowApiKeyModal}>
         <DialogContent className="max-w-md rounded-2xl">
-          <DialogTitle className="text-lg font-bold text-slate-900">Paste your POS API key</DialogTitle>
-          <DialogDescription className="text-sm text-slate-600">
+          <DialogTitle className="text-lg font-bold text-foreground">Paste your POS API key</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
             Enter your {mode} secret key from Merchant Portal to enable POS recording.
           </DialogDescription>
           <div className="space-y-3">

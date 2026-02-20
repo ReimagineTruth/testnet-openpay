@@ -160,7 +160,7 @@ const ActivityPage = () => {
       </div>
 
       {!loading && merchantActivities.length > 0 && (
-        <div className="mb-4 rounded-3xl border border-border bg-white p-4">
+        <div className="mb-4 rounded-3xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold text-foreground">Merchant activity</h3>
           <div className="mt-2 space-y-2">
             {merchantActivities.slice(0, 6).map((row) => (

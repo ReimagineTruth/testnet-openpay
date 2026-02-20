@@ -6,6 +6,18 @@ const AnnouncementsPage = () => {
 
   const announcements = [
     {
+      title: "OpenPay Feature Rollout (Full Platform)",
+      date: "Feb 20, 2026",
+      body:
+        "OpenPay now includes: Pi-auth and email sign-in, Express Send, Receive QR, request payment, invoices, contacts, merchant portal, merchant checkout links, POS mode, API keys, analytics, virtual card checkout, remittance merchant tools, public ledger, and admin dashboard tools.",
+    },
+    {
+      title: "Transaction Email Notifications Enabled",
+      date: "Feb 20, 2026",
+      body:
+        "OpenPay now uses user email for transaction notifications. Users will receive email alerts for sent and received payments (plus in-app notifications).",
+    },
+    {
       title: "Welcome to OpenPay",
       date: "Feb 16, 2026",
       body: "OpenPay is live with Pi-auth sign-in, Express Send, Receive QR, payment requests, and secure activity history.",
