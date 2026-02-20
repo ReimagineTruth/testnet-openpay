@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import BrandLogo from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { setAppCookie } from "@/lib/userPreferences";
@@ -9,6 +10,7 @@ import { setAppCookie } from "@/lib/userPreferences";
 const PiAuthPage = () => {
   const [piUser, setPiUser] = useState<{ uid: string; username: string } | null>(null);
   const [busyAuth, setBusyAuth] = useState(false);
+  const [authorizationCode, setAuthorizationCode] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -39,6 +41,15 @@ const PiAuthPage = () => {
     if (ref) {
       setAppCookie("openpay_last_ref", ref);
     }
+    const incomingCode = (
+      searchParams.get("auth_code") ||
+      searchParams.get("openpay_code") ||
+      searchParams.get("code") ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+    if (incomingCode) setAuthorizationCode(incomingCode);
   }, [searchParams]);
 
   const signInPiBackedAccount = async (piUid: string, piUsername: string, referralCode?: string) => {
@@ -120,6 +131,8 @@ const PiAuthPage = () => {
   };
 
   const handlePiAuth = async () => {
+    const expectedCode = authorizationCode.trim().toUpperCase();
+
     if (!initPi() || !window.Pi) return;
     setBusyAuth(true);
     try {
@@ -164,6 +177,20 @@ const PiAuthPage = () => {
           navigate("/setup-profile", { replace: true });
           return;
         }
+
+        if (expectedCode) {
+          const { data: isMatch, error: verifyError } = await (supabase as any).rpc(
+            "verify_my_openpay_authorization_code",
+            { p_code: expectedCode }
+          );
+          if (verifyError) {
+            throw new Error(verifyError.message || "Authorization code verification failed");
+          }
+          if (!isMatch) {
+            await supabase.auth.signOut();
+            throw new Error("Invalid or expired authorization code. Please request a new code and try again.");
+          }
+        }
       }
 
       setPiUser({ uid: verified.uid, username });
@@ -193,8 +220,18 @@ const PiAuthPage = () => {
           <div className="rounded-2xl border border-border/70 bg-white p-3">
             <h2 className="text-base font-semibold text-foreground">Sign in with Pi</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Connect your Pi account.
+              Connect your Pi account. You can also enter authorization code for desktop/mobile sign in verification.
             </p>
+            <Input
+              value={authorizationCode}
+              onChange={(e) => setAuthorizationCode(e.target.value.toUpperCase())}
+              placeholder="Authorization code (example: HDZRTBY1)"
+              className="mt-3 h-11 rounded-2xl border-white/70 bg-white"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Optional. If entered, OpenPay verifies the authenticated Pi account with this one-time code.
+            </p>
+            <p className="mt-1 text-xs font-medium text-paypal-blue">Do not share your code with anyone.</p>
             {!!searchParams.get("ref") && (
               <p className="mt-1 text-xs text-paypal-blue">
                 Referral code detected: {(searchParams.get("ref") || "").trim().toLowerCase()}
@@ -212,6 +249,14 @@ const PiAuthPage = () => {
             >
               {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
             </Button>
+            <Button
+              onClick={handlePiAuth}
+              disabled={busyAuth || !authorizationCode.trim()}
+              variant="outline"
+              className="mt-2 h-11 w-full rounded-2xl"
+            >
+              {busyAuth ? "Verifying..." : "Log In With Authorization Code"}
+            </Button>
             {piUser && (
               <p className="mt-3 text-sm text-foreground">
                 Connected as <span className="font-semibold">@{piUser.username}</span> ({piUser.uid})
@@ -224,7 +269,7 @@ const PiAuthPage = () => {
             <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
           </p>
           <p className="mt-2 text-center text-xs text-muted-foreground">
-            Learn more: <Link to="/about-openpay" className="text-paypal-blue font-medium">About OpenPay</Link> ·{" "}
+            Learn more: <Link to="/about-openpay" className="text-paypal-blue font-medium">About OpenPay</Link> -{" "}
             <Link to="/legal" className="text-paypal-blue font-medium">Legal</Link>
           </p>
         </div>
@@ -234,3 +279,4 @@ const PiAuthPage = () => {
 };
 
 export default PiAuthPage;
+

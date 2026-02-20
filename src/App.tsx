@@ -46,6 +46,7 @@ import OpenPayOfficialPage from "./pages/OpenPayOfficialPage";
 import RemittanceMerchantPage from "./pages/RemittanceMerchantPage";
 import MerchantCheckoutPage from "./pages/MerchantCheckoutPage";
 import OpenAppPage from "./pages/OpenAppPage";
+import OpenPayDesktopPage from "./pages/OpenPayDesktopPage";
 import VirtualCardPage from "./pages/VirtualCardPage";
 import NotFound from "./pages/NotFound";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
@@ -129,6 +130,7 @@ const AppRoutes = () => {
         <Route path="/remittance-merchant" element={<RemittanceMerchantPage />} />
         <Route path="/openpay-official" element={<OpenPayOfficialPage />} />
         <Route path="/openapp" element={<OpenAppPage />} />
+        <Route path="/openpay-desktop" element={<OpenPayDesktopPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <AppSecurityGate />

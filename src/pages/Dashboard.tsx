@@ -667,7 +667,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-28">
+    <div className="min-h-screen overflow-x-hidden bg-background pb-28">
       <div className="flex items-center justify-between px-4 pt-5">
         <CurrencySelector />
         <div className="flex gap-3">
@@ -997,17 +997,17 @@ const Dashboard = () => {
 
       {userAccount && (
         <div className="mx-4 mt-4 paypal-surface rounded-3xl p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
+          <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:justify-between">
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">OpenPay Account</p>
               <p className="mt-1 text-base font-bold text-foreground">{userAccount.account_name}</p>
               <p className="text-sm text-muted-foreground">@{userAccount.account_username}</p>
-              <p className="mt-2 text-sm font-mono text-foreground">{userAccount.account_number}</p>
+              <p className="mt-2 break-all text-sm font-mono text-foreground">{userAccount.account_number}</p>
             </div>
             <button
               type="button"
               onClick={copyAccountNumber}
-              className="rounded-xl border border-border/70 bg-white px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary"
+              className="w-full rounded-xl border border-border/70 bg-white px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary sm:w-auto"
             >
               <Copy className="mr-1 inline h-4 w-4" />
               Copy
@@ -1091,7 +1091,7 @@ const Dashboard = () => {
         )}
       </div>
 
-      <div className="fixed bottom-24 left-0 right-0 px-4 pb-1">
+      <div className="fixed bottom-24 left-0 right-0 overflow-x-hidden px-4 pb-1">
         <div className="flex gap-3">
           <button
             onClick={() => navigate("/contacts")}
@@ -1100,9 +1100,9 @@ const Dashboard = () => {
           >
             <Users className="h-6 w-6" />
           </button>
-          <button onClick={() => navigate("/send")} className="flex-1 rounded-full bg-paypal-blue py-3.5 text-center font-semibold text-white shadow-lg shadow-[#0057d8]/30">Pay</button>
-          <button onClick={() => setShowReceiveOptions(true)} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Receive</button>
-          <button onClick={() => navigate("/topup")} className="flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center font-semibold text-paypal-blue">Top Up</button>
+          <button onClick={() => navigate("/send")} className="min-w-0 flex-1 rounded-full bg-paypal-blue py-3.5 text-center text-sm font-semibold text-white shadow-lg shadow-[#0057d8]/30">Pay</button>
+          <button onClick={() => setShowReceiveOptions(true)} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Receive</button>
+          <button onClick={() => navigate("/topup")} className="min-w-0 flex-1 rounded-full border border-paypal-blue/25 bg-white py-3.5 text-center text-sm font-semibold text-paypal-blue">Top Up</button>
         </div>
       </div>
       </>
