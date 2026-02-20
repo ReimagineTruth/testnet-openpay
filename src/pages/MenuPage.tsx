@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BottomNav from "@/components/BottomNav";
-import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake } from "lucide-react";
+import { Send, ArrowLeftRight, CircleDollarSign, FileText, Wallet, Activity, HelpCircle, Info, Scale, LogOut, Clapperboard, ShieldAlert, FileCheck, Lock, Users, Store, BookOpen, Download, Megaphone, Smartphone, CreditCard, ShieldCheck, Handshake, Monitor } from "lucide-react";
 import { toast } from "sonner";
 import { clearAllAppSecurityUnlocks } from "@/lib/appSecurity";
 import { canAccessRemittanceMerchant, isRemittanceUiEnabled } from "@/lib/remittanceAccess";
@@ -13,6 +13,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 const MenuPage = () => {
+  const OPENPAY_APK_URL = "https://median.co/share/qdobalj#apk";
   const navigate = useNavigate();
   const remittanceUiEnabled = isRemittanceUiEnabled();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -64,11 +65,18 @@ const MenuPage = () => {
   }, [remittanceUiEnabled]);
 
   const handleInstall = async () => {
-    if (!installPrompt) return;
+    if (!installPrompt) {
+      window.open(OPENPAY_APK_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
     await installPrompt.prompt();
     const choice = await installPrompt.userChoice;
     setCanInstall(choice.outcome === "accepted" ? false : true);
-    if (choice.outcome === "accepted") setInstallPrompt(null);
+    if (choice.outcome === "accepted") {
+      setInstallPrompt(null);
+      return;
+    }
+    window.open(OPENPAY_APK_URL, "_blank", "noopener,noreferrer");
   };
 
   const handleLogout = async () => {
@@ -126,6 +134,7 @@ const MenuPage = () => {
         { icon: Users, label: "User profile", action: () => navigate("/profile") },
         { icon: Wallet, label: "Wallet", action: () => navigate("/dashboard") },
         { icon: Store, label: "Merchant Portal", action: () => navigate("/merchant-onboarding") },
+        { icon: Store, label: "Merchant POS", action: () => navigate("/merchant-pos") },
         ...(canOpenAdminDashboard
           ? [{ icon: ShieldCheck, label: "Admin Dashboard", action: () => navigate("/admin-dashboard") }]
           : []),
@@ -151,7 +160,6 @@ const MenuPage = () => {
         { icon: BookOpen, label: "Public ledger", action: () => navigate("/ledger") },
         { icon: Users, label: "Affiliate referrals", action: () => navigate("/affiliate") },
         { icon: Clapperboard, label: "Pi Ad Network", action: () => navigate("/pi-ads") },
-        { icon: Smartphone, label: "OpenPay Desktop", action: () => navigate("/openpay-desktop") },
       ],
     },
     {
@@ -190,7 +198,18 @@ const MenuPage = () => {
     {
       title: "Install OpenPay",
       items: [
-        { icon: Download, label: canInstall ? "Install OpenPay" : "Install not available", action: () => handleInstall(), disabled: !canInstall },
+        {
+          icon: Monitor,
+          label: "OpenPay Desktop",
+          action: () => navigate("/openpay-desktop"),
+          subtitle: "Desktop sign-in",
+        },
+        {
+          icon: Download,
+          label: canInstall ? "Install OpenPay" : "Install OpenPay APK",
+          action: () => handleInstall(),
+          subtitle: "Android APK",
+        },
       ],
     },
   ];

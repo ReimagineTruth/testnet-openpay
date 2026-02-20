@@ -1017,7 +1017,7 @@ const Dashboard = () => {
             <button
               type="button"
               onClick={() => navigate("/virtual-card")}
-              className="rounded-xl bg-paypal-blue px-3 py-2 text-sm font-semibold text-white hover:bg-[#004dc5]"
+              className="w-full rounded-xl bg-paypal-blue px-3 py-2 text-sm font-semibold text-white hover:bg-[#004dc5] sm:w-auto"
             >
               Open Virtual Card
             </button>

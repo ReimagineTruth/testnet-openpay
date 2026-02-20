@@ -44,6 +44,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import MerchantOnboardingPage from "./pages/MerchantOnboardingPage";
 import OpenPayOfficialPage from "./pages/OpenPayOfficialPage";
 import RemittanceMerchantPage from "./pages/RemittanceMerchantPage";
+import MerchantPosPage from "./pages/MerchantPosPage";
 import MerchantCheckoutPage from "./pages/MerchantCheckoutPage";
 import OpenAppPage from "./pages/OpenAppPage";
 import OpenPayDesktopPage from "./pages/OpenPayDesktopPage";
@@ -123,6 +124,7 @@ const AppRoutes = () => {
         <Route path="/gdpr" element={<GdprPage />} />
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/merchant-onboarding" element={<MerchantOnboardingPage />} />
+        <Route path="/merchant-pos" element={<MerchantPosPage />} />
         <Route path="/payment-links/create" element={<PaymentLinksCreatePage />} />
         <Route path="/payment-link/:token" element={<MerchantCheckoutPage />} />
         <Route path="/merchant-checkout" element={<MerchantCheckoutPage />} />

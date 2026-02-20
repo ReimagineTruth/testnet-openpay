@@ -218,7 +218,7 @@ const PiAuthPage = () => {
           </div>
 
           <div className="rounded-2xl border border-border/70 bg-white p-3">
-            <h2 className="text-base font-semibold text-foreground">Sign in with Pi</h2>
+            <h2 className="text-base font-semibold text-foreground">OpenPay Desktop</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Connect your Pi account. You can also enter authorization code for desktop/mobile sign in verification.
             </p>

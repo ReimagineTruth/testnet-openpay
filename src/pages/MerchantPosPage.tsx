@@ -1,0 +1,636 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, CheckCircle2, Copy, History, RotateCcw, Search, Settings, Wallet, XCircle } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import BrandLogo from "@/components/BrandLogo";
+
+type PosView = "home" | "receive" | "history" | "refund" | "settings";
+type PaymentStatus = "idle" | "waiting" | "success" | "failed";
+
+type PosDashboard = {
+  merchant_name: string;
+  merchant_username: string;
+  wallet_balance: number;
+  today_total_received: number;
+  today_transactions: number;
+  refunded_transactions: number;
+  key_mode: "sandbox" | "live";
+};
+
+type PosTx = {
+  payment_id: string;
+  payment_created_at: string;
+  payment_status: string;
+  amount: number;
+  currency: string;
+  payer_user_id: string;
+  payer_name: string;
+  payer_username: string | null;
+  transaction_id: string;
+  transaction_note: string | null;
+  session_token: string;
+  customer_name: string | null;
+  customer_email: string | null;
+};
+
+type PosSession = {
+  session_id: string;
+  session_token: string;
+  total_amount: number;
+  currency: string;
+  status: string;
+  expires_at: string;
+  qr_payload: string;
+};
+
+type OfflineQueuedPayment = {
+  amount: number;
+  currency: string;
+  qrStyle: "dynamic" | "static";
+  createdAt: string;
+};
+
+const OFFLINE_POS_KEY = "openpay_pos_offline_queue_v1";
+const SETTINGS_KEY = "openpay_pos_settings_v1";
+
+const MerchantPosPage = () => {
+  const navigate = useNavigate();
+  const [activeView, setActiveView] = useState<PosView>("home");
+  const [mode, setMode] = useState<"sandbox" | "live">("live");
+  const [dashboard, setDashboard] = useState<PosDashboard | null>(null);
+  const [transactions, setTransactions] = useState<PosTx[]>([]);
+  const [amountInput, setAmountInput] = useState("0");
+  const [currency, setCurrency] = useState("USD");
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle");
+  const [currentSession, setCurrentSession] = useState<PosSession | null>(null);
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyStatus, setHistoryStatus] = useState<"all" | "succeeded" | "refunded">("all");
+  const [selectedTx, setSelectedTx] = useState<PosTx | null>(null);
+  const [offlineMode, setOfflineMode] = useState(false);
+  const [qrStyle, setQrStyle] = useState<"dynamic" | "static">("dynamic");
+  const [notificationSound, setNotificationSound] = useState(true);
+  const [notificationVibration, setNotificationVibration] = useState(true);
+  const [inventoryLinking, setInventoryLinking] = useState(false);
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueuedPayment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creatingPayment, setCreatingPayment] = useState(false);
+  const [syncingQueue, setSyncingQueue] = useState(false);
+  const [refunding, setRefunding] = useState(false);
+
+  const amountValue = useMemo(() => {
+    const parsed = Number(amountInput || "0");
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [amountInput]);
+
+  const qrDisplayValue = useMemo(() => {
+    if (!currentSession) return "openpay-pos://waiting";
+    return `${window.location.origin}/merchant-checkout?session=${encodeURIComponent(currentSession.session_token)}`;
+  }, [currentSession]);
+
+  const pushNotification = (message: string, status: "success" | "error" = "success") => {
+    if (status === "success") toast.success(message);
+    else toast.error(message);
+
+    if (notificationVibration && typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+      navigator.vibrate(100);
+    }
+    if (notificationSound && typeof window !== "undefined") {
+      const audio = new Audio(
+        status === "success"
+          ? "data:audio/wav;base64,UklGRlQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YTAAAAAA"
+          : "data:audio/wav;base64,UklGRlQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YTAAAAAA"
+      );
+      void audio.play().catch(() => undefined);
+    }
+  };
+
+  const loadData = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    await (supabase as any).rpc("upsert_my_merchant_profile", {
+      p_merchant_name: null,
+      p_merchant_username: null,
+      p_merchant_logo_url: null,
+      p_default_currency: currency,
+    });
+
+    const [{ data: summary, error: summaryError }, { data: txRows, error: txError }] = await Promise.all([
+      (supabase as any).rpc("get_my_pos_dashboard", { p_mode: mode }),
+      (supabase as any).rpc("get_my_pos_transactions", {
+        p_mode: mode,
+        p_status: historyStatus === "all" ? null : historyStatus,
+        p_search: historySearch || null,
+        p_limit: 100,
+        p_offset: 0,
+      }),
+    ]);
+
+    if (summaryError) throw new Error(summaryError.message || "Failed to load POS dashboard");
+    if (txError) throw new Error(txError.message || "Failed to load POS transactions");
+
+    const summaryRow = Array.isArray(summary) ? summary[0] : summary;
+    if (summaryRow) {
+      setDashboard({
+        merchant_name: String(summaryRow.merchant_name || "OpenPay Merchant"),
+        merchant_username: String(summaryRow.merchant_username || ""),
+        wallet_balance: Number(summaryRow.wallet_balance || 0),
+        today_total_received: Number(summaryRow.today_total_received || 0),
+        today_transactions: Number(summaryRow.today_transactions || 0),
+        refunded_transactions: Number(summaryRow.refunded_transactions || 0),
+        key_mode: (String(summaryRow.key_mode || mode) as "sandbox" | "live"),
+      });
+    }
+
+    setTransactions(
+      (Array.isArray(txRows) ? txRows : []).map((row: any) => ({
+        payment_id: String(row.payment_id),
+        payment_created_at: String(row.payment_created_at || ""),
+        payment_status: String(row.payment_status || "succeeded"),
+        amount: Number(row.amount || 0),
+        currency: String(row.currency || "USD"),
+        payer_user_id: String(row.payer_user_id || ""),
+        payer_name: String(row.payer_name || "OpenPay Customer"),
+        payer_username: row.payer_username ? String(row.payer_username) : null,
+        transaction_id: String(row.transaction_id || ""),
+        transaction_note: row.transaction_note ? String(row.transaction_note) : null,
+        session_token: String(row.session_token || ""),
+        customer_name: row.customer_name ? String(row.customer_name) : null,
+        customer_email: row.customer_email ? String(row.customer_email) : null,
+      }))
+    );
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const settingsRaw = localStorage.getItem(SETTINGS_KEY);
+        if (settingsRaw) {
+          const parsed = JSON.parse(settingsRaw) as Record<string, unknown>;
+          if (parsed.offlineMode === true || parsed.offlineMode === false) setOfflineMode(Boolean(parsed.offlineMode));
+          if (parsed.qrStyle === "dynamic" || parsed.qrStyle === "static") setQrStyle(parsed.qrStyle);
+          if (parsed.notificationSound === true || parsed.notificationSound === false) setNotificationSound(Boolean(parsed.notificationSound));
+          if (parsed.notificationVibration === true || parsed.notificationVibration === false) setNotificationVibration(Boolean(parsed.notificationVibration));
+          if (parsed.inventoryLinking === true || parsed.inventoryLinking === false) setInventoryLinking(Boolean(parsed.inventoryLinking));
+        }
+        const queueRaw = localStorage.getItem(OFFLINE_POS_KEY);
+        if (queueRaw) {
+          const parsed = JSON.parse(queueRaw);
+          if (Array.isArray(parsed)) setOfflineQueue(parsed as OfflineQueuedPayment[]);
+        }
+        await loadData();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to load POS");
+      } finally {
+        setLoading(false);
+      }
+    };
+    void init();
+  }, [navigate]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({
+        offlineMode,
+        qrStyle,
+        notificationSound,
+        notificationVibration,
+        inventoryLinking,
+      })
+    );
+  }, [inventoryLinking, notificationSound, notificationVibration, offlineMode, qrStyle]);
+
+  useEffect(() => {
+    localStorage.setItem(OFFLINE_POS_KEY, JSON.stringify(offlineQueue));
+  }, [offlineQueue]);
+
+  useEffect(() => {
+    if (!currentSession || paymentStatus !== "waiting") return;
+
+    const timer = window.setInterval(async () => {
+      const { data, error } = await (supabase as any)
+        .from("merchant_checkout_sessions")
+        .select("status, paid_at")
+        .eq("id", currentSession.session_id)
+        .maybeSingle();
+      if (error || !data) return;
+
+      if (data.status === "paid") {
+        setPaymentStatus("success");
+        pushNotification("Payment successful", "success");
+        void loadData();
+      } else if (data.status === "expired" || data.status === "canceled") {
+        setPaymentStatus("failed");
+        pushNotification("Payment failed or expired", "error");
+      }
+    }, 4000);
+
+    return () => window.clearInterval(timer);
+  }, [currentSession, paymentStatus]);
+
+  useEffect(() => {
+    if (loading) return;
+    void loadData().catch(() => undefined);
+  }, [historySearch, historyStatus, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pressKey = (key: string) => {
+    setAmountInput((prev) => {
+      if (key === "C") return "0";
+      if (key === "DEL") return prev.length <= 1 ? "0" : prev.slice(0, -1);
+      if (key === ".") return prev.includes(".") ? prev : `${prev}.`;
+      if (prev === "0") return key;
+      return `${prev}${key}`;
+    });
+  };
+
+  const createPaymentSession = async () => {
+    if (amountValue <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+
+    if (offlineMode && typeof navigator !== "undefined" && !navigator.onLine) {
+      setOfflineQueue((prev) => [
+        ...prev,
+        { amount: amountValue, currency, qrStyle, createdAt: new Date().toISOString() },
+      ]);
+      setPaymentStatus("waiting");
+      toast.message("Offline mode enabled. Payment request queued for sync.");
+      return;
+    }
+
+    setCreatingPayment(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("create_my_pos_checkout_session", {
+        p_amount: amountValue,
+        p_currency: currency,
+        p_mode: mode,
+        p_customer_name: null,
+        p_customer_email: null,
+        p_reference: null,
+        p_qr_style: qrStyle,
+        p_expires_in_minutes: qrStyle === "static" ? 1440 : 30,
+      });
+      if (error) throw new Error(error.message || "Failed to create POS payment");
+
+      const row = Array.isArray(data) ? (data[0] as PosSession | undefined) : (data as PosSession | null);
+      if (!row?.session_token) throw new Error("Missing POS session token");
+      setCurrentSession(row);
+      setPaymentStatus("waiting");
+      setActiveView("receive");
+      toast.success("QR code generated");
+    } catch (error) {
+      pushNotification(error instanceof Error ? error.message : "Failed to create payment", "error");
+    } finally {
+      setCreatingPayment(false);
+    }
+  };
+
+  const syncOfflineQueue = async () => {
+    if (!offlineQueue.length) {
+      toast.message("No offline transactions to sync");
+      return;
+    }
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("You are still offline");
+      return;
+    }
+
+    setSyncingQueue(true);
+    let synced = 0;
+    try {
+      for (const row of offlineQueue) {
+        const { error } = await (supabase as any).rpc("create_my_pos_checkout_session", {
+          p_amount: row.amount,
+          p_currency: row.currency,
+          p_mode: mode,
+          p_customer_name: null,
+          p_customer_email: null,
+          p_reference: "offline_sync",
+          p_qr_style: row.qrStyle,
+          p_expires_in_minutes: row.qrStyle === "static" ? 1440 : 30,
+        });
+        if (!error) synced += 1;
+      }
+      setOfflineQueue([]);
+      await loadData();
+      toast.success(`Synced ${synced} queued payment requests`);
+    } finally {
+      setSyncingQueue(false);
+    }
+  };
+
+  const refundTransaction = async (tx: PosTx) => {
+    setRefunding(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("refund_my_pos_transaction", {
+        p_payment_id: tx.payment_id,
+        p_reason: "POS refund",
+      });
+      if (error) throw new Error(error.message || "Refund failed");
+      const row = Array.isArray(data) ? data[0] : data;
+      toast.success(`Refunded successfully (${row?.refund_transaction_id || "done"})`);
+      setSelectedTx(null);
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Refund failed");
+    } finally {
+      setRefunding(false);
+    }
+  };
+
+  const copyQrValue = async () => {
+    try {
+      await navigator.clipboard.writeText(qrDisplayValue);
+      toast.success("QR payment link copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-100 px-4 py-6 text-sm text-muted-foreground">Loading OpenPay POS...</div>;
+  }
+
+  const renderStatus = () => {
+    if (paymentStatus === "success") {
+      return <p className="mt-3 flex items-center justify-center gap-2 text-emerald-600"><CheckCircle2 className="h-4 w-4" /> Payment Successful</p>;
+    }
+    if (paymentStatus === "failed") {
+      return <p className="mt-3 flex items-center justify-center gap-2 text-rose-600"><XCircle className="h-4 w-4" /> Payment Failed</p>;
+    }
+    if (paymentStatus === "waiting") {
+      return <p className="mt-3 text-center text-sm text-slate-500">Waiting for payment...</p>;
+    }
+    return null;
+  };
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-slate-100 pb-8">
+      <header className="bg-gradient-to-r from-[#0a3b90] to-[#1d63d8] px-4 py-3 text-white">
+        <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate("/menu")} className="rounded-lg border border-white/20 p-2">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-2">
+              <BrandLogo className="h-7 w-7" />
+              <div>
+                <p className="text-sm font-semibold">OpenPay Merchant POS</p>
+                <p className="text-xs text-white/80">@{dashboard?.merchant_username || "merchant"}</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-white/80">Balance</p>
+            <p className="text-sm font-semibold">{Number(dashboard?.wallet_balance || 0).toFixed(2)} OP</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto mt-4 grid w-full max-w-6xl gap-4 px-4 lg:grid-cols-[300px_1fr]">
+        <aside className="rounded-2xl border border-slate-200 bg-white p-3">
+          <h2 className="mb-3 text-lg font-bold text-slate-900">Dashboard</h2>
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <div className="rounded-xl border border-slate-200 p-2">
+              <p className="text-xs text-slate-500">Today total</p>
+              <p className="text-lg font-bold text-slate-900">{Number(dashboard?.today_total_received || 0).toFixed(2)} OP</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-2">
+              <p className="text-xs text-slate-500">Transactions</p>
+              <p className="text-lg font-bold text-slate-900">{dashboard?.today_transactions || 0}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <button onClick={() => setActiveView("receive")} className="flex w-full items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-left text-sm font-semibold text-white">
+              <Wallet className="h-4 w-4" /> Receive Payment
+            </button>
+            <button onClick={() => setActiveView("history")} className="flex w-full items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-left text-sm font-semibold text-white">
+              <History className="h-4 w-4" /> Transaction History
+            </button>
+            <button onClick={() => setActiveView("refund")} className="flex w-full items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-left text-sm font-semibold text-white">
+              <RotateCcw className="h-4 w-4" /> Refund / Cancel
+            </button>
+            <button onClick={() => setActiveView("settings")} className="flex w-full items-center gap-2 rounded-xl bg-slate-200 px-3 py-2 text-left text-sm font-semibold text-slate-800">
+              <Settings className="h-4 w-4" /> Settings
+            </button>
+          </div>
+        </aside>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          {(activeView === "home" || activeView === "receive") && (
+            <div>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h3 className="text-2xl font-bold text-slate-900">Receive Payment</h3>
+                <select value={mode} onChange={(e) => setMode(e.target.value as "sandbox" | "live")} className="ml-auto rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                  <option value="live">Live</option>
+                  <option value="sandbox">Sandbox</option>
+                </select>
+                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                  <option value="JPY">JPY</option>
+                  <option value="CAD">CAD</option>
+                </select>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 p-3">
+                  <p className="text-xs text-slate-500">Enter amount</p>
+                  <div className="mt-1 rounded-xl border border-slate-300 px-3 py-2 text-3xl font-bold text-slate-900">{amountValue.toFixed(2)}</div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "DEL"].map((key) => (
+                      <button
+                        key={key}
+                        onClick={() => pressKey(key)}
+                        className="rounded-lg border border-slate-300 py-2 text-lg font-semibold text-slate-800 hover:bg-slate-100"
+                      >
+                        {key}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button onClick={() => pressKey("C")} variant="outline" className="h-11 rounded-lg">Clear</Button>
+                    <Button
+                      onClick={createPaymentSession}
+                      disabled={creatingPayment}
+                      className="h-11 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      {creatingPayment ? "Creating..." : "Generate QR Code"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 p-3 text-center">
+                  <p className="text-sm font-semibold text-slate-800">Scan QR Code to Pay</p>
+                  <div className="mt-3 flex justify-center">
+                    <QRCodeSVG value={qrDisplayValue} size={220} includeMargin />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">1 OpenPay = 1 USD / 1 Pi</p>
+                  <div className="mt-3 flex justify-center gap-2">
+                    <Button variant="outline" className="h-9 rounded-lg" onClick={copyQrValue}>
+                      <Copy className="mr-2 h-4 w-4" /> Copy QR link
+                    </Button>
+                  </div>
+                  {renderStatus()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeView === "history" && (
+            <div>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <h3 className="text-2xl font-bold text-slate-900">Transaction History</h3>
+                <div className="ml-auto flex gap-2">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                    <Input value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} className="h-9 pl-8" placeholder="Search..." />
+                  </div>
+                  <select value={historyStatus} onChange={(e) => setHistoryStatus(e.target.value as any)} className="h-9 rounded-lg border border-slate-300 px-3 text-sm">
+                    <option value="all">All</option>
+                    <option value="succeeded">Completed</option>
+                    <option value="refunded">Refunded</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {transactions.map((tx) => (
+                  <button
+                    key={tx.payment_id}
+                    onClick={() => setSelectedTx(tx)}
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-left hover:bg-slate-50"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-900">{tx.payer_name}</p>
+                      <p className="text-xs text-slate-500">{new Date(tx.payment_created_at).toLocaleString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-slate-900">{tx.amount.toFixed(2)} {tx.currency}</p>
+                      <p className={`text-xs ${tx.payment_status === "refunded" ? "text-orange-600" : "text-emerald-600"}`}>{tx.payment_status}</p>
+                    </div>
+                  </button>
+                ))}
+                {!transactions.length && <p className="py-10 text-center text-sm text-slate-500">No transactions found.</p>}
+              </div>
+            </div>
+          )}
+
+          {activeView === "refund" && (
+            <div>
+              <h3 className="mb-3 text-2xl font-bold text-slate-900">Refund / Cancel</h3>
+              <div className="space-y-2">
+                {transactions
+                  .filter((tx) => tx.payment_status === "succeeded")
+                  .map((tx) => (
+                    <div key={tx.payment_id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                      <div>
+                        <p className="font-semibold text-slate-900">{tx.payer_name}</p>
+                        <p className="text-xs text-slate-500">{new Date(tx.payment_created_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{tx.amount.toFixed(2)} {tx.currency}</p>
+                        <Button
+                          onClick={() => refundTransaction(tx)}
+                          disabled={refunding}
+                          className="h-9 rounded-lg bg-orange-500 text-white hover:bg-orange-600"
+                        >
+                          Refund
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                {!transactions.some((tx) => tx.payment_status === "succeeded") && (
+                  <p className="py-10 text-center text-sm text-slate-500">No completed payments available for refund.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeView === "settings" && (
+            <div>
+              <h3 className="mb-3 text-2xl font-bold text-slate-900">Settings / Offline Mode</h3>
+              <div className="space-y-3">
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-800">Enable offline mode</span>
+                  <input type="checkbox" checked={offlineMode} onChange={(e) => setOfflineMode(e.target.checked)} />
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-800">QR code style</span>
+                  <select value={qrStyle} onChange={(e) => setQrStyle(e.target.value as "dynamic" | "static")} className="rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                    <option value="dynamic">Dynamic</option>
+                    <option value="static">Static</option>
+                  </select>
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-800">Notification sound</span>
+                  <input type="checkbox" checked={notificationSound} onChange={(e) => setNotificationSound(e.target.checked)} />
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-800">Notification vibration</span>
+                  <input type="checkbox" checked={notificationVibration} onChange={(e) => setNotificationVibration(e.target.checked)} />
+                </label>
+                <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
+                  <span className="text-sm font-medium text-slate-800">Inventory linking</span>
+                  <input type="checkbox" checked={inventoryLinking} onChange={(e) => setInventoryLinking(e.target.checked)} />
+                </label>
+                <div className="rounded-xl border border-slate-200 px-3 py-2">
+                  <p className="text-sm font-medium text-slate-800">Offline queue</p>
+                  <p className="mt-1 text-xs text-slate-500">{offlineQueue.length} pending payment request(s)</p>
+                  <Button
+                    variant="outline"
+                    className="mt-2 h-9 rounded-lg"
+                    disabled={syncingQueue || !offlineQueue.length}
+                    onClick={syncOfflineQueue}
+                  >
+                    {syncingQueue ? "Syncing..." : "Sync now"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+
+      {selectedTx && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 md:items-center md:justify-center">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="text-lg font-bold text-slate-900">Transaction Details</h4>
+              <button onClick={() => setSelectedTx(null)} className="rounded-md border border-slate-200 px-2 py-1 text-xs">Close</button>
+            </div>
+            <p className="text-sm text-slate-700">Payer: {selectedTx.payer_name}</p>
+            <p className="text-sm text-slate-700">Amount: {selectedTx.amount.toFixed(2)} {selectedTx.currency}</p>
+            <p className="text-sm text-slate-700">Status: {selectedTx.payment_status}</p>
+            <p className="text-sm text-slate-700">Session: {selectedTx.session_token}</p>
+            <p className="text-xs text-slate-500">{new Date(selectedTx.payment_created_at).toLocaleString()}</p>
+            {selectedTx.payment_status === "succeeded" && (
+              <Button
+                onClick={() => refundTransaction(selectedTx)}
+                disabled={refunding}
+                className="mt-3 h-10 w-full rounded-lg bg-orange-500 text-white hover:bg-orange-600"
+              >
+                Refund this transaction
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MerchantPosPage;
