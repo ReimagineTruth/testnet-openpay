@@ -13,7 +13,7 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 const MenuPage = () => {
-  const OPENPAY_APK_URL = "https://median.co/share/qdobalj#apk";
+  const OPENPAY_APK_URL = "https://mega.nz/file/pFsECZjD#Lwdlo7tjgprWpU-N7UzKOy_aolGk5t4pgzHXA4VLm7M";
   const navigate = useNavigate();
   const remittanceUiEnabled = isRemittanceUiEnabled();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
