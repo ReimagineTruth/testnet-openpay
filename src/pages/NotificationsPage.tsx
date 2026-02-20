@@ -26,27 +26,76 @@ const NotificationsPage = () => {
         return;
       }
 
-      const { data } = await supabase
-        .from("app_notifications")
-        .select("id, title, body, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const [transactionsRes, requestsRes, invoicesRes, ticketsRes] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("id, sender_id, receiver_id, amount, created_at")
+          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+          .order("created_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("payment_requests")
+          .select("id, requester_id, payer_id, amount, status, created_at")
+          .or(`requester_id.eq.${user.id},payer_id.eq.${user.id}`)
+          .order("created_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("invoices")
+          .select("id, sender_id, recipient_id, amount, status, created_at")
+          .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+          .order("created_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("support_tickets")
+          .select("id, subject, status, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
 
-      const notifications: NotificationItem[] = (data || []).map((item) => ({
-        id: String(item.id),
-        title: String(item.title || "Notification"),
-        description: String(item.body || ""),
-        createdAt: String(item.created_at || new Date().toISOString()),
-      }));
+      const notifications: NotificationItem[] = [];
 
-      setItems(notifications);
+      (transactionsRes.data || []).forEach((tx) => {
+        const incoming = tx.receiver_id === user.id;
+        notifications.push({
+          id: `tx-${tx.id}`,
+          title: incoming ? "Payment received" : "Payment sent",
+          description: `$${Number(tx.amount).toFixed(2)}`,
+          createdAt: tx.created_at,
+        });
+      });
 
-      await supabase
-        .from("app_notifications")
-        .update({ read_at: new Date().toISOString() })
-        .eq("user_id", user.id)
-        .is("read_at", null);
+      (requestsRes.data || []).forEach((request) => {
+        const incoming = request.payer_id === user.id;
+        notifications.push({
+          id: `request-${request.id}`,
+          title: incoming ? "Money request received" : "Money request sent",
+          description: `${request.status} · $${Number(request.amount).toFixed(2)}`,
+          createdAt: request.created_at,
+        });
+      });
+
+      (invoicesRes.data || []).forEach((invoice) => {
+        const incoming = invoice.recipient_id === user.id;
+        notifications.push({
+          id: `invoice-${invoice.id}`,
+          title: incoming ? "Invoice received" : "Invoice sent",
+          description: `${invoice.status} · $${Number(invoice.amount).toFixed(2)}`,
+          createdAt: invoice.created_at,
+        });
+      });
+
+      (ticketsRes.data || []).forEach((ticket) => {
+        notifications.push({
+          id: `ticket-${ticket.id}`,
+          title: "Support ticket update",
+          description: `${ticket.subject} · ${ticket.status.replace("_", " ")}`,
+          createdAt: ticket.created_at,
+        });
+      });
+
+      notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setItems(notifications.slice(0, 30));
 
       setLoading(false);
     };

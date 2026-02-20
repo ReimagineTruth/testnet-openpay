@@ -21,21 +21,6 @@ const AdminMrwainAuth = () => {
     setParams({ mode: nextMode });
   };
 
-  const handleGoogle = async () => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      toast.error("No internet connection. Please reconnect and try again.");
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
-    if (error) toast.error(error.message);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -82,7 +67,6 @@ const AdminMrwainAuth = () => {
         <div className="mb-8 text-center">
           <BrandLogo className="mx-auto mb-4 h-16 w-16" />
           <p className="mb-1 text-lg font-semibold text-white">OpenPay</p>
-          <p className="text-sm font-medium text-white/85">Admin Email Auth /admin-mrwain</p>
         </div>
 
         <div className="paypal-surface w-full rounded-3xl p-7 shadow-2xl shadow-black/15">
@@ -100,10 +84,6 @@ const AdminMrwainAuth = () => {
               Sign Up
             </button>
           </div>
-
-          <Button onClick={handleGoogle} className="mb-4 h-12 w-full rounded-2xl bg-white text-paypal-blue hover:bg-secondary">
-            Continue with Google
-          </Button>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
@@ -150,9 +130,6 @@ const AdminMrwainAuth = () => {
           <p className="mt-4 text-center text-xs text-muted-foreground">
             By continuing, you agree to our <Link to="/terms" className="text-paypal-blue font-medium">Terms</Link> and{" "}
             <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
-          </p>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            Already signed in? <Link to="/admin-dashboard" className="font-medium text-paypal-blue">Open admin dashboard</Link>
           </p>
         </div>
       </div>
