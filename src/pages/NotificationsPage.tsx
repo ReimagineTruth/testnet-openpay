@@ -26,7 +26,7 @@ const NotificationsPage = () => {
         return;
       }
 
-      const [transactionsRes, requestsRes, invoicesRes, ticketsRes] = await Promise.all([
+      const [transactionsRes, requestsRes, invoicesRes, ticketsRes, merchantNotifRes] = await Promise.all([
         supabase
           .from("transactions")
           .select("id, sender_id, receiver_id, amount, created_at")
@@ -51,6 +51,12 @@ const NotificationsPage = () => {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(5),
+        supabase
+          .from("app_notifications")
+          .select("id, type, title, body, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(15),
       ]);
 
       const notifications: NotificationItem[] = [];
@@ -94,9 +100,17 @@ const NotificationsPage = () => {
         });
       });
 
+      (merchantNotifRes.data || []).forEach((item) => {
+        notifications.push({
+          id: `app-${item.id}`,
+          title: item.title || "Notification",
+          description: item.body || String(item.type || "App event"),
+          createdAt: item.created_at,
+        });
+      });
+
       notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setItems(notifications.slice(0, 30));
-
       setLoading(false);
     };
 

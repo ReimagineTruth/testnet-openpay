@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Copy, ExternalLink, FileText, Link2, Menu, MessageCircle, Plus, ShoppingCart, Trash2, X } from "lucide-react";
+import { Bell, Copy, ExternalLink, FileText, Link2, Menu, MessageCircle, Plus, ShoppingCart, Store, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
 
@@ -374,6 +374,10 @@ const PaymentLinksCreatePage = () => {
               <p className="text-lg font-semibold text-foreground">Create payment link</p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => navigate("/merchant-pos")}>
+                <Store className="mr-1 h-4 w-4" />
+                POS
+              </Button>
               <Button variant="outline" className="h-10 rounded-full px-4" onClick={() => navigate("/openpay-api-docs")}>
                 <FileText className="mr-1 h-4 w-4" />
                 API docs
@@ -701,6 +705,15 @@ const PaymentLinksCreatePage = () => {
                     className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
                     onClick={() => {
                       setShowMenuSelection(false);
+                      navigate("/merchant-pos");
+                    }}
+                  >
+                    Merchant POS
+                  </button>
+                  <button
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-secondary"
+                    onClick={() => {
+                      setShowMenuSelection(false);
                       navigate("/openpay-api-docs");
                     }}
                   >
@@ -723,6 +736,13 @@ const PaymentLinksCreatePage = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              className="paypal-surface rounded-full p-2 text-foreground"
+              aria-label="Open Merchant POS"
+              onClick={() => navigate("/merchant-pos")}
+            >
+              <Store className="h-5 w-5" />
+            </button>
             <button
               className="paypal-surface rounded-full p-2 text-foreground"
               aria-label="API docs"

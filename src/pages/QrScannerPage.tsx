@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, HelpCircle, ImageIcon } from "lucide-react";
+import { ArrowLeft, HelpCircle, ImageIcon, RotateCcw } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { toast } from "sonner";
 import BrandLogo from "@/components/BrandLogo";
@@ -10,10 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 const extractQrPayload = (rawValue: string) => {
   const value = rawValue.trim();
-  if (!value) return { uid: null as string | null, username: "", amount: "", currency: "", note: "" };
+  if (!value) return { uid: null as string | null, username: "", amount: "", currency: "", note: "", checkoutSession: "" };
 
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (uuidRegex.test(value)) return { uid: value, username: "", amount: "", currency: "", note: "" };
+  if (uuidRegex.test(value)) return { uid: value, username: "", amount: "", currency: "", note: "", checkoutSession: "" };
 
   const normalizeUsername = (input: string | null | undefined) =>
     (input || "").trim().replace(/^@+/, "").toLowerCase();
@@ -30,12 +30,14 @@ const extractQrPayload = (rawValue: string) => {
     const amount = parsed.searchParams.get("amount") || "";
     const currencyCode = (parsed.searchParams.get("currency") || "").toUpperCase();
     const note = parsed.searchParams.get("note") || "";
+    const checkoutSession = parsed.searchParams.get("checkout_session") || "";
     return {
       uid: uidOrTo && uuidRegex.test(uidOrTo) ? uidOrTo : null,
       username: normalizedUsername,
       amount,
       currency: currencyCode,
       note,
+      checkoutSession,
     };
   } catch {
     // no-op
@@ -46,12 +48,14 @@ const extractQrPayload = (rawValue: string) => {
   const maybeAmount = value.split("amount=")[1]?.split("&")[0] || "";
   const maybeCurrency = (value.split("currency=")[1]?.split("&")[0] || "").toUpperCase();
   const maybeNote = value.split("note=")[1]?.split("&")[0] || "";
+  const maybeCheckoutSession = value.split("checkout_session=")[1]?.split("&")[0] || "";
   return {
     uid: maybeUid && uuidRegex.test(maybeUid) ? maybeUid : null,
     username: maybeUsername,
     amount: maybeAmount,
     currency: maybeCurrency,
     note: maybeNote,
+    checkoutSession: maybeCheckoutSession,
   };
 };
 
@@ -92,6 +96,7 @@ const QrScannerPage = () => {
   const [scanHint, setScanHint] = useState("Initializing camera...");
   const [pastedCode, setPastedCode] = useState("");
   const [showInstructions, setShowInstructions] = useState(false);
+  const [retryToken, setRetryToken] = useState(0);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const handlingDecodeRef = useRef(false);
@@ -178,6 +183,9 @@ const QrScannerPage = () => {
       }
       if (payload.note) {
         params.set("note", payload.note);
+      }
+      if (payload.checkoutSession) {
+        params.set("checkout_session", payload.checkoutSession);
       }
 
       setScanHint("Recipient found. Opening payment...");
@@ -298,7 +306,7 @@ const QrScannerPage = () => {
       void stopScanner();
       scannerRef.current = null;
     };
-  }, [returnTo]);
+  }, [returnTo, retryToken]);
 
   const handleSelectFile = async (file: File) => {
     try {
@@ -384,7 +392,7 @@ const QrScannerPage = () => {
 
         <div className="relative z-10 h-[100dvh] overflow-y-auto overflow-x-hidden px-5 pt-4 pb-8">
           <div className="mx-auto flex min-h-[100dvh] w-full max-w-xl flex-col pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => navigate(returnTo)}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/35"
@@ -393,16 +401,29 @@ const QrScannerPage = () => {
               <ArrowLeft className="h-5 w-5" />
             </button>
             <h1 className="text-2xl font-bold">Scan QR code</h1>
-            <button
-              onClick={() => setShowInstructions(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/35"
-              aria-label="Help"
-            >
-              <HelpCircle className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setScanError("");
+                  setScanHint("Retrying camera...");
+                  setRetryToken((prev) => prev + 1);
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/35"
+                aria-label="Retry camera"
+              >
+                <RotateCcw className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setShowInstructions(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/35"
+                aria-label="Help"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
-          <div className="mt-8 text-center">
+          <div className="mt-5 text-center">
             <p className="text-3xl font-semibold">Please confirm</p>
             <p className="text-xl text-white/90">which QR you are scanning for payment</p>
             <div className="mt-3 flex items-center justify-center gap-2">
@@ -411,7 +432,7 @@ const QrScannerPage = () => {
             </div>
           </div>
 
-          <div className="mt-10 flex justify-center">
+          <div className="mt-6 flex justify-center">
             <div className="relative h-[280px] w-[280px] border border-white/60 bg-black/10">
               <div className="absolute left-0 top-0 h-8 w-8 border-l-[6px] border-t-[6px] border-white" />
               <div className="absolute right-0 top-0 h-8 w-8 border-r-[6px] border-t-[6px] border-white" />
@@ -422,6 +443,23 @@ const QrScannerPage = () => {
 
           <p className="mt-6 text-center text-2xl font-semibold">Position the QR code within the frame to pay</p>
           {scanError && <p className="mt-3 text-center text-sm text-red-300">{scanError}</p>}
+          {scanError && (
+            <div className="mt-2 flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-xl border-white/40 bg-black/30 text-white hover:bg-black/45"
+                onClick={() => {
+                  setScanError("");
+                  setScanHint("Retrying camera...");
+                  setRetryToken((prev) => prev + 1);
+                }}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Retry Camera
+              </Button>
+            </div>
+          )}
           {!scanError && <p className="mt-3 text-center text-sm text-white/80">{scanHint}</p>}
           {!scanError && !scanning && <p className="mt-1 text-center text-xs text-white/70">Opening camera...</p>}
 

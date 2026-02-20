@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Copy, History, RotateCcw, Search, Settings, Wallet, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, HelpCircle, History, Printer, RotateCcw, Search, Settings, Wallet, XCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import BrandLogo from "@/components/BrandLogo";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 type PosView = "home" | "receive" | "history" | "refund" | "settings";
 type PaymentStatus = "idle" | "waiting" | "success" | "failed";
@@ -53,18 +55,28 @@ type OfflineQueuedPayment = {
   qrStyle: "dynamic" | "static";
   createdAt: string;
 };
+type PosApiKeySettings = {
+  sandbox_api_key_id: string | null;
+  sandbox_key_name: string | null;
+  sandbox_publishable_key: string | null;
+  live_api_key_id: string | null;
+  live_key_name: string | null;
+  live_publishable_key: string | null;
+};
 
 const OFFLINE_POS_KEY = "openpay_pos_offline_queue_v1";
 const SETTINGS_KEY = "openpay_pos_settings_v1";
 
 const MerchantPosPage = () => {
   const navigate = useNavigate();
+  const { currencies, currency: activeCurrency } = useCurrency();
   const [activeView, setActiveView] = useState<PosView>("home");
   const [mode, setMode] = useState<"sandbox" | "live">("live");
   const [dashboard, setDashboard] = useState<PosDashboard | null>(null);
   const [transactions, setTransactions] = useState<PosTx[]>([]);
   const [amountInput, setAmountInput] = useState("0");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(activeCurrency.code);
+  const [merchantUserId, setMerchantUserId] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("idle");
   const [currentSession, setCurrentSession] = useState<PosSession | null>(null);
   const [historySearch, setHistorySearch] = useState("");
@@ -72,6 +84,7 @@ const MerchantPosPage = () => {
   const [selectedTx, setSelectedTx] = useState<PosTx | null>(null);
   const [offlineMode, setOfflineMode] = useState(false);
   const [qrStyle, setQrStyle] = useState<"dynamic" | "static">("dynamic");
+  const [storeName, setStoreName] = useState("");
   const [notificationSound, setNotificationSound] = useState(true);
   const [notificationVibration, setNotificationVibration] = useState(true);
   const [inventoryLinking, setInventoryLinking] = useState(false);
@@ -80,16 +93,41 @@ const MerchantPosPage = () => {
   const [creatingPayment, setCreatingPayment] = useState(false);
   const [syncingQueue, setSyncingQueue] = useState(false);
   const [refunding, setRefunding] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [posApiSecretInput, setPosApiSecretInput] = useState("");
+  const [savingPosApiKey, setSavingPosApiKey] = useState(false);
+  const [receiptIssuedAt, setReceiptIssuedAt] = useState<string | null>(null);
+  const [hasActiveApiKey, setHasActiveApiKey] = useState(true);
+  const [configuredApiKeyName, setConfiguredApiKeyName] = useState("");
 
   const amountValue = useMemo(() => {
     const parsed = Number(amountInput || "0");
     return Number.isFinite(parsed) ? parsed : 0;
   }, [amountInput]);
 
+  const normalizedAmount = useMemo(() => {
+    return amountValue > 0 ? amountValue.toFixed(2) : "";
+  }, [amountValue]);
+
+  const getPiCodeLabel = (code: string) => (code === "PI" ? "PI" : `PI ${code}`);
+
   const qrDisplayValue = useMemo(() => {
-    if (!currentSession) return "openpay-pos://waiting";
-    return `${window.location.origin}/merchant-checkout?session=${encodeURIComponent(currentSession.session_token)}`;
-  }, [currentSession]);
+    if (!merchantUserId) return "openpay-pos://waiting";
+    const params = new URLSearchParams({
+      uid: merchantUserId,
+      name: (storeName || dashboard?.merchant_name || "OpenPay Merchant").trim(),
+      username: dashboard?.merchant_username || "",
+      currency,
+      note: "POS payment",
+    });
+    if (normalizedAmount) params.set("amount", normalizedAmount);
+    if (currentSession?.session_token) params.set("checkout_session", currentSession.session_token);
+    return `openpay://pay?${params.toString()}`;
+  }, [currency, currentSession?.session_token, dashboard?.merchant_name, dashboard?.merchant_username, merchantUserId, normalizedAmount, storeName]);
+  const selectedUnitLabel = getPiCodeLabel(currency);
+  const qrStoreName = (storeName || dashboard?.merchant_name || "OpenPay Merchant").trim();
+  const qrMerchantUsername = (dashboard?.merchant_username || "merchant").replace(/^@+/, "");
 
   const pushNotification = (message: string, status: "success" | "error" = "success") => {
     if (status === "success") toast.success(message);
@@ -108,6 +146,17 @@ const MerchantPosPage = () => {
     }
   };
 
+  const loadPosApiKeySettings = async (targetMode: "sandbox" | "live" = mode) => {
+    const { data, error } = await (supabase as any).rpc("get_my_pos_api_key_settings");
+    if (error) throw new Error(error.message || "Failed to load POS API key settings");
+
+    const settingsRow = (Array.isArray(data) ? data[0] : data) as PosApiKeySettings | null;
+    const configuredId = targetMode === "sandbox" ? settingsRow?.sandbox_api_key_id : settingsRow?.live_api_key_id;
+    const configuredName = targetMode === "sandbox" ? settingsRow?.sandbox_key_name : settingsRow?.live_key_name;
+    setConfiguredApiKeyName(String(configuredName || ""));
+    setHasActiveApiKey(Boolean(configuredId));
+  };
+
   const loadData = async () => {
     const {
       data: { user },
@@ -116,6 +165,7 @@ const MerchantPosPage = () => {
       navigate("/auth");
       return;
     }
+    setMerchantUserId(user.id);
 
     await (supabase as any).rpc("upsert_my_merchant_profile", {
       p_merchant_name: null,
@@ -137,6 +187,7 @@ const MerchantPosPage = () => {
 
     if (summaryError) throw new Error(summaryError.message || "Failed to load POS dashboard");
     if (txError) throw new Error(txError.message || "Failed to load POS transactions");
+    await loadPosApiKeySettings(mode);
 
     const summaryRow = Array.isArray(summary) ? summary[0] : summary;
     if (summaryRow) {
@@ -178,6 +229,7 @@ const MerchantPosPage = () => {
           const parsed = JSON.parse(settingsRaw) as Record<string, unknown>;
           if (parsed.offlineMode === true || parsed.offlineMode === false) setOfflineMode(Boolean(parsed.offlineMode));
           if (parsed.qrStyle === "dynamic" || parsed.qrStyle === "static") setQrStyle(parsed.qrStyle);
+          if (typeof parsed.storeName === "string") setStoreName(parsed.storeName);
           if (parsed.notificationSound === true || parsed.notificationSound === false) setNotificationSound(Boolean(parsed.notificationSound));
           if (parsed.notificationVibration === true || parsed.notificationVibration === false) setNotificationVibration(Boolean(parsed.notificationVibration));
           if (parsed.inventoryLinking === true || parsed.inventoryLinking === false) setInventoryLinking(Boolean(parsed.inventoryLinking));
@@ -203,12 +255,13 @@ const MerchantPosPage = () => {
       JSON.stringify({
         offlineMode,
         qrStyle,
+        storeName,
         notificationSound,
         notificationVibration,
         inventoryLinking,
       })
     );
-  }, [inventoryLinking, notificationSound, notificationVibration, offlineMode, qrStyle]);
+  }, [inventoryLinking, notificationSound, notificationVibration, offlineMode, qrStyle, storeName]);
 
   useEffect(() => {
     localStorage.setItem(OFFLINE_POS_KEY, JSON.stringify(offlineQueue));
@@ -243,6 +296,12 @@ const MerchantPosPage = () => {
     void loadData().catch(() => undefined);
   }, [historySearch, historyStatus, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!currencies.find((c) => c.code === currency)) {
+      setCurrency(activeCurrency.code);
+    }
+  }, [activeCurrency.code, currencies, currency]);
+
   const pressKey = (key: string) => {
     setAmountInput((prev) => {
       if (key === "C") return "0";
@@ -256,6 +315,15 @@ const MerchantPosPage = () => {
   const createPaymentSession = async () => {
     if (amountValue <= 0) {
       toast.error("Enter a valid amount");
+      return;
+    }
+
+    if (currency === "PI") {
+      setCurrentSession(null);
+      setPaymentStatus("idle");
+      setActiveView("receive");
+      setReceiptIssuedAt(new Date().toISOString());
+      toast.success("PI QR code generated");
       return;
     }
 
@@ -288,11 +356,37 @@ const MerchantPosPage = () => {
       setCurrentSession(row);
       setPaymentStatus("waiting");
       setActiveView("receive");
+      setReceiptIssuedAt(new Date().toISOString());
       toast.success("QR code generated");
     } catch (error) {
       pushNotification(error instanceof Error ? error.message : "Failed to create payment", "error");
     } finally {
       setCreatingPayment(false);
+    }
+  };
+
+  const savePosApiKey = async () => {
+    const secret = posApiSecretInput.trim();
+    if (!secret) {
+      toast.error("Paste your secret API key first");
+      return;
+    }
+
+    setSavingPosApiKey(true);
+    try {
+      const { error } = await (supabase as any).rpc("upsert_my_pos_api_key", {
+        p_mode: mode,
+        p_secret_key: secret,
+      });
+      if (error) throw new Error(error.message || "Failed to save POS API key");
+      setPosApiSecretInput("");
+      setShowApiKeyModal(false);
+      await loadPosApiKeySettings(mode);
+      toast.success(`${mode} POS API key saved`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save POS API key");
+    } finally {
+      setSavingPosApiKey(false);
     }
   };
 
@@ -358,6 +452,14 @@ const MerchantPosPage = () => {
     }
   };
 
+  const printPosReceipt = () => {
+    if (!normalizedAmount) {
+      toast.error("Enter an amount first");
+      return;
+    }
+    window.print();
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-slate-100 px-4 py-6 text-sm text-muted-foreground">Loading OpenPay POS...</div>;
   }
@@ -377,6 +479,28 @@ const MerchantPosPage = () => {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-100 pb-8">
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #pos-print-receipt,
+          #pos-print-receipt * {
+            visibility: visible !important;
+          }
+          #pos-print-receipt {
+            position: fixed !important;
+            inset: 0 !important;
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: center !important;
+            background: #ffffff !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            z-index: 9999 !important;
+          }
+        }
+      `}</style>
       <header className="bg-gradient-to-r from-[#0a3b90] to-[#1d63d8] px-4 py-3 text-white">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
@@ -393,7 +517,7 @@ const MerchantPosPage = () => {
           </div>
           <div className="text-right">
             <p className="text-xs text-white/80">Balance</p>
-            <p className="text-sm font-semibold">{Number(dashboard?.wallet_balance || 0).toFixed(2)} OP</p>
+            <p className="text-sm font-semibold">{Number(dashboard?.wallet_balance || 0).toFixed(2)} {selectedUnitLabel}</p>
           </div>
         </div>
       </header>
@@ -404,7 +528,7 @@ const MerchantPosPage = () => {
           <div className="mb-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-slate-200 p-2">
               <p className="text-xs text-slate-500">Today total</p>
-              <p className="text-lg font-bold text-slate-900">{Number(dashboard?.today_total_received || 0).toFixed(2)} OP</p>
+              <p className="text-lg font-bold text-slate-900">{Number(dashboard?.today_total_received || 0).toFixed(2)} {selectedUnitLabel}</p>
             </div>
             <div className="rounded-xl border border-slate-200 p-2">
               <p className="text-xs text-slate-500">Transactions</p>
@@ -433,16 +557,30 @@ const MerchantPosPage = () => {
             <div>
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <h3 className="text-2xl font-bold text-slate-900">Receive Payment</h3>
+                <Button
+                  variant="outline"
+                  className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  onClick={() => setShowInstructions(true)}
+                >
+                  <HelpCircle className="mr-2 h-4 w-4" /> POS Instructions
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9 rounded-lg border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  onClick={() => setShowApiKeyModal(true)}
+                >
+                  Setup API Key
+                </Button>
                 <select value={mode} onChange={(e) => setMode(e.target.value as "sandbox" | "live")} className="ml-auto rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
                   <option value="live">Live</option>
                   <option value="sandbox">Sandbox</option>
                 </select>
                 <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="GBP">GBP</option>
-                  <option value="JPY">JPY</option>
-                  <option value="CAD">CAD</option>
+                  {currencies.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {getPiCodeLabel(c.code)} - {c.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -465,23 +603,54 @@ const MerchantPosPage = () => {
                     <Button onClick={() => pressKey("C")} variant="outline" className="h-11 rounded-lg">Clear</Button>
                     <Button
                       onClick={createPaymentSession}
-                      disabled={creatingPayment}
+                      disabled={creatingPayment || !hasActiveApiKey}
                       className="h-11 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
                     >
                       {creatingPayment ? "Creating..." : "Generate QR Code"}
                     </Button>
                   </div>
+                  {!hasActiveApiKey && (
+                    <p className="mt-2 text-xs text-rose-600">
+                      Setup your {mode} POS API key first in{" "}
+                      <button
+                        type="button"
+                        className="font-semibold underline"
+                        onClick={() => setShowApiKeyModal(true)}
+                      >
+                        POS Settings
+                      </button>
+                      {" "}or create one in Merchant Portal.
+                    </p>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 p-3 text-center">
                   <p className="text-sm font-semibold text-slate-800">Scan QR Code to Pay</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{qrStoreName}</p>
                   <div className="mt-3 flex justify-center">
-                    <QRCodeSVG value={qrDisplayValue} size={220} includeMargin />
+                    <QRCodeSVG
+                      value={qrDisplayValue}
+                      size={220}
+                      level="H"
+                      includeMargin
+                      imageSettings={{
+                        src: "/openpay-o.svg",
+                        height: 34,
+                        width: 34,
+                        excavate: true,
+                      }}
+                    />
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">1 OpenPay = 1 USD / 1 Pi</p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    {normalizedAmount ? `${normalizedAmount} ${getPiCodeLabel(currency)}` : `Select amount and ${getPiCodeLabel(currency)}`}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">@{qrMerchantUsername}</p>
                   <div className="mt-3 flex justify-center gap-2">
                     <Button variant="outline" className="h-9 rounded-lg" onClick={copyQrValue}>
                       <Copy className="mr-2 h-4 w-4" /> Copy QR link
+                    </Button>
+                    <Button variant="outline" className="h-9 rounded-lg" onClick={printPosReceipt}>
+                      <Printer className="mr-2 h-4 w-4" /> Print Receipt
                     </Button>
                   </div>
                   {renderStatus()}
@@ -564,6 +733,28 @@ const MerchantPosPage = () => {
             <div>
               <h3 className="mb-3 text-2xl font-bold text-slate-900">Settings / Offline Mode</h3>
               <div className="space-y-3">
+                <div className={`rounded-xl border px-3 py-2 ${hasActiveApiKey ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50"}`}>
+                  <p className="text-sm font-medium text-slate-800">API key requirement ({mode})</p>
+                  <p className={`mt-1 text-xs ${hasActiveApiKey ? "text-emerald-700" : "text-rose-700"}`}>
+                    {hasActiveApiKey
+                      ? `Configured key: ${configuredApiKeyName || "Active key"}. POS transactions are linked to Merchant Portal.`
+                      : `No configured ${mode} POS API key. Paste your secret key below to enable POS recording.`}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-2 h-8 rounded-lg"
+                    onClick={() => setShowApiKeyModal(true)}
+                  >
+                    Paste API Key
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="mt-2 h-8 rounded-lg"
+                    onClick={() => navigate("/merchant-onboarding")}
+                  >
+                    Open Merchant Portal
+                  </Button>
+                </div>
                 <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
                   <span className="text-sm font-medium text-slate-800">Enable offline mode</span>
                   <input type="checkbox" checked={offlineMode} onChange={(e) => setOfflineMode(e.target.checked)} />
@@ -575,6 +766,15 @@ const MerchantPosPage = () => {
                     <option value="static">Static</option>
                   </select>
                 </label>
+                <div className="rounded-xl border border-slate-200 px-3 py-2">
+                  <p className="mb-1 text-sm font-medium text-slate-800">Store name (shown above QR)</p>
+                  <Input
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    placeholder={dashboard?.merchant_name || "OpenPay Merchant"}
+                    className="h-9"
+                  />
+                </div>
                 <label className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2">
                   <span className="text-sm font-medium text-slate-800">Notification sound</span>
                   <input type="checkbox" checked={notificationSound} onChange={(e) => setNotificationSound(e.target.checked)} />
@@ -605,6 +805,40 @@ const MerchantPosPage = () => {
         </section>
       </main>
 
+      <div id="pos-print-receipt" className="hidden print:flex">
+        <div className="w-[302px] bg-white px-4 py-3 font-mono text-[11px] leading-4 text-black">
+          <p className="text-center text-[15px] font-bold">OpenPay Merchant POS</p>
+          <p className="text-center">{qrStoreName}</p>
+          <p className="text-center">@{dashboard?.merchant_username || "merchant"}</p>
+          <p className="mt-1 text-center">{new Date(receiptIssuedAt || Date.now()).toLocaleString()}</p>
+          <p className="mt-2 border-t border-dashed border-black pt-2 text-center font-bold">ACKNOWLEDGEMENT RECEIPT</p>
+          <p className="mt-2">Type: POS RECEIVE</p>
+          <p>Mode: {mode.toUpperCase()}</p>
+          <p>Currency: {getPiCodeLabel(currency)}</p>
+          <p>Amount: {normalizedAmount || "0.00"}</p>
+          <p>Status: {paymentStatus.toUpperCase()}</p>
+          <p className="break-all">Session: {currentSession?.session_token || "N/A"}</p>
+          <p className="mt-2 border-t border-dashed border-black pt-2 text-center">SCAN QR CODE TO PAY</p>
+          <div className="mt-2 flex justify-center">
+            <QRCodeSVG
+              value={qrDisplayValue}
+              size={170}
+              level="H"
+              includeMargin
+              imageSettings={{
+                src: "/openpay-o.svg",
+                height: 28,
+                width: 28,
+                excavate: true,
+              }}
+            />
+          </div>
+          <p className="mt-1 text-center text-[10px]">@{qrMerchantUsername}</p>
+          <p className="mt-1 text-center text-[10px]">Merchant and amount are pre-filled after scan.</p>
+          <p className="mt-2 border-t border-dashed border-black pt-2 text-center">Thank you for using OpenPay</p>
+        </div>
+      </div>
+
       {selectedTx && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 md:items-center md:justify-center">
           <div className="w-full max-w-md rounded-2xl bg-white p-4">
@@ -629,6 +863,47 @@ const MerchantPosPage = () => {
           </div>
         </div>
       )}
+
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogTitle className="text-lg font-bold text-slate-900">POS Instructions</DialogTitle>
+          <DialogDescription className="text-sm text-slate-600">
+            How to generate and print a POS payment receipt with QR.
+          </DialogDescription>
+          <div className="space-y-2 text-sm text-slate-700">
+            <p>1. Enter amount using keypad and select currency.</p>
+            <p>2. Click Generate QR Code to prepare payment details.</p>
+            <p>3. Click Print Receipt to print supermarket-style ticket.</p>
+            <p>4. Let customer scan the QR on the printed receipt.</p>
+            <p>5. Use Transaction History and Refund for post-payment actions.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showApiKeyModal} onOpenChange={setShowApiKeyModal}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogTitle className="text-lg font-bold text-slate-900">Paste your POS API key</DialogTitle>
+          <DialogDescription className="text-sm text-slate-600">
+            Enter your {mode} secret key from Merchant Portal to enable POS recording.
+          </DialogDescription>
+          <div className="space-y-3">
+            <Input
+              type="password"
+              value={posApiSecretInput}
+              onChange={(e) => setPosApiSecretInput(e.target.value)}
+              placeholder={`osk_${mode}_...`}
+              className="h-11"
+            />
+            <Button
+              className="h-10 w-full rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={savePosApiKey}
+              disabled={savingPosApiKey}
+            >
+              {savingPosApiKey ? "Saving..." : "Enter API Key"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

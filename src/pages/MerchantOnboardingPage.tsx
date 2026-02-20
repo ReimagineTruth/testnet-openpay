@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, Bell, Boxes, Copy, CreditCard, FileText, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, MessageCircle, Plus, Trash2, Users, Wallet, X } from "lucide-react";
+import { ArrowLeft, BarChart3, Bell, Boxes, Copy, CreditCard, FileText, KeyRound, LayoutDashboard, Link as LinkIcon, Menu, MessageCircle, Plus, Store, Trash2, Users, Wallet, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,26 @@ type MerchantSession = {
   customer_email: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+};
+type MerchantBalanceOverview = {
+  gross_volume: number;
+  refunded_total: number;
+  transferred_total: number;
+  available_balance: number;
+  wallet_balance: number;
+  savings_balance: number;
+};
+type MerchantActivityRow = {
+  activity_id: string;
+  activity_type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  note: string;
+  created_at: string;
+  counterparty_name: string | null;
+  counterparty_username: string | null;
+  source: string;
 };
 
 type CustomerProfile = { id: string; full_name: string; username: string | null };
@@ -109,6 +129,11 @@ const MerchantOnboardingPage = () => {
   const [creatingSession, setCreatingSession] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState("");
   const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [merchantBalanceOverview, setMerchantBalanceOverview] = useState<MerchantBalanceOverview | null>(null);
+  const [merchantActivity, setMerchantActivity] = useState<MerchantActivityRow[]>([]);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferDestination, setTransferDestination] = useState<"wallet" | "savings">("wallet");
+  const [transferring, setTransferring] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: "api_key" | "checkout"; id: string; label: string } | null>(null);
 
@@ -183,6 +208,8 @@ const MerchantOnboardingPage = () => {
       { data: walletRow },
       { count: unreadCount },
       { data: analyticsPayload },
+      { data: balancePayload, error: balanceError },
+      { data: activityPayload },
     ] = await Promise.all([
       db.from("merchant_profiles").select("user_id, merchant_name, merchant_username, merchant_logo_url, default_currency").eq("user_id", uid).maybeSingle(),
       db.from("merchant_api_keys").select("id, key_mode, key_name, publishable_key, secret_key_last4, is_active, created_at").eq("merchant_user_id", uid).order("created_at", { ascending: false }),
@@ -192,6 +219,8 @@ const MerchantOnboardingPage = () => {
       db.from("wallets").select("balance").eq("user_id", uid).maybeSingle(),
       db.from("app_notifications").select("id", { count: "exact", head: true }).eq("user_id", uid).is("read_at", null),
       db.rpc("get_my_merchant_analytics", { p_mode: selectedMode, p_days: 30 }),
+      db.rpc("get_my_merchant_balance_overview", { p_mode: selectedMode }),
+      db.rpc("get_my_merchant_activity", { p_mode: selectedMode, p_limit: 20, p_offset: 0 }),
     ]);
 
     if (profile) {
@@ -211,6 +240,33 @@ const MerchantOnboardingPage = () => {
     setWalletBalance(Number(walletRow?.balance || 0));
     setUnreadNotifications(Number(unreadCount || 0));
     setAnalyticsData(Array.isArray(analyticsPayload) ? analyticsPayload[0] : analyticsPayload);
+    if (!balanceError) {
+      const balanceRow = Array.isArray(balancePayload) ? balancePayload[0] : balancePayload;
+      if (balanceRow) {
+        setMerchantBalanceOverview({
+          gross_volume: Number(balanceRow.gross_volume || 0),
+          refunded_total: Number(balanceRow.refunded_total || 0),
+          transferred_total: Number(balanceRow.transferred_total || 0),
+          available_balance: Number(balanceRow.available_balance || 0),
+          wallet_balance: Number(balanceRow.wallet_balance || 0),
+          savings_balance: Number(balanceRow.savings_balance || 0),
+        });
+      }
+    }
+    setMerchantActivity(
+      (Array.isArray(activityPayload) ? activityPayload : []).map((row: any) => ({
+        activity_id: String(row.activity_id || ""),
+        activity_type: String(row.activity_type || "payment"),
+        amount: Number(row.amount || 0),
+        currency: String(row.currency || defaultCurrency || "USD"),
+        status: String(row.status || "completed"),
+        note: String(row.note || ""),
+        created_at: String(row.created_at || ""),
+        counterparty_name: row.counterparty_name ? String(row.counterparty_name) : null,
+        counterparty_username: row.counterparty_username ? String(row.counterparty_username) : null,
+        source: String(row.source || "merchant_portal"),
+      })),
+    );
   };
 
   useEffect(() => {
@@ -414,6 +470,33 @@ const MerchantOnboardingPage = () => {
     toast.success(`${modeLabel} checkout link ready`);
   };
 
+  const transferMerchantBalance = async () => {
+    if (!userId) return;
+    const amount = Number(transferAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a valid transfer amount");
+      return;
+    }
+
+    setTransferring(true);
+    const { error } = await db.rpc("transfer_my_merchant_balance", {
+      p_amount: amount,
+      p_mode: mode,
+      p_destination: transferDestination,
+      p_note: "Merchant portal transfer",
+    });
+    setTransferring(false);
+
+    if (error) {
+      toast.error(error.message || "Transfer failed");
+      return;
+    }
+
+    setTransferAmount("");
+    await loadPortal(userId, mode);
+    toast.success(`Moved to ${transferDestination}`);
+  };
+
   const deleteCheckoutLink = async (sessionId: string) => {
     const { data, error } = await db.rpc("delete_my_merchant_checkout_link", { p_session_id: sessionId });
     if (error) {
@@ -451,9 +534,9 @@ const MerchantOnboardingPage = () => {
               <h2 className="mt-1 text-3xl font-bold text-slate-900">{modeLabel} overview</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Gross volume</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.gross.toFixed(2)}</p></div>
-                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Available</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.available.toFixed(2)}</p></div>
+                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Available</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.available_balance ?? kpis.available).toFixed(2)}</p></div>
                 <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Payments</p><p className="mt-1 text-xl font-bold">{kpis.total}</p></div>
-                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Wallet balance</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {walletBalance.toFixed(2)}</p></div>
+                <div className="rounded-xl border border-border bg-slate-50 p-4"><p className="text-xs text-muted-foreground">Wallet balance</p><p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.wallet_balance ?? walletBalance).toFixed(2)}</p></div>
               </div>
             </div>
             <div className="rounded-2xl border border-border bg-white p-5">
@@ -476,6 +559,20 @@ const MerchantOnboardingPage = () => {
               </div>
             </div>
             <div className="rounded-2xl border border-border bg-white p-5"><h3 className="font-semibold text-slate-900">Recommendations</h3><p className="mt-2 text-sm text-muted-foreground">Use sandbox first. When ready, switch to live and create a live key.</p></div>
+            <div className="rounded-2xl border border-border bg-white p-5">
+              <h3 className="font-semibold text-slate-900">Recent merchant activity</h3>
+              <div className="mt-3 space-y-2">
+                {merchantActivity.slice(0, 5).map((row) => (
+                  <div key={row.activity_id} className="rounded-lg border border-border px-3 py-2">
+                    <p className="text-sm font-medium text-slate-900">{row.activity_type.replaceAll("_", " ")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {getPiCodeLabel((row.currency || defaultCurrency).toUpperCase())} {Number(row.amount || 0).toFixed(2)} · {row.source}
+                    </p>
+                  </div>
+                ))}
+                {!merchantActivity.length && <p className="text-sm text-muted-foreground">No merchant activity yet.</p>}
+              </div>
+            </div>
           </div>
         </div>
       );
@@ -700,28 +797,68 @@ const MerchantOnboardingPage = () => {
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Incoming</p>
-              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.gross.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.gross_volume ?? kpis.gross).toFixed(2)}</p>
             </div>
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Refunded</p>
-              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.refunds.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.refunded_total ?? kpis.refunds).toFixed(2)}</p>
             </div>
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Available</p>
-              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {kpis.available.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.available_balance ?? kpis.available).toFixed(2)}</p>
             </div>
             <div className="rounded-xl border border-border p-4">
               <p className="text-xs text-muted-foreground">Wallet balance</p>
-              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {walletBalance.toFixed(2)}</p>
+              <p className="mt-1 text-xl font-bold">{getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.wallet_balance ?? walletBalance).toFixed(2)}</p>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button className="h-10 rounded-lg" onClick={() => navigate("/dashboard")}>
-              Open Wallet
-            </Button>
-            <Button variant="outline" className="h-10 rounded-lg" onClick={() => navigate("/dashboard")}>
-              Move to Savings
-            </Button>
+          <div className="mt-4 rounded-xl border border-border p-3">
+            <p className="mb-2 text-sm font-semibold text-slate-900">Move merchant available balance</p>
+            <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
+              <Input
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder={`Amount (${defaultCurrency})`}
+                className="h-10 rounded-lg"
+              />
+              <select
+                value={transferDestination}
+                onChange={(e) => setTransferDestination((e.target.value as "wallet" | "savings") || "wallet")}
+                className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
+              >
+                <option value="wallet">To wallet</option>
+                <option value="savings">To savings</option>
+              </select>
+              <Button className="h-10 rounded-lg" onClick={transferMerchantBalance} disabled={transferring}>
+                {transferring ? "Moving..." : "Move balance"}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Available: {getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.available_balance ?? kpis.available).toFixed(2)}
+              {" · "}
+              Savings: {getPiCodeLabel(defaultCurrency)} {Number(merchantBalanceOverview?.savings_balance ?? 0).toFixed(2)}
+            </p>
+          </div>
+          <div className="mt-4 rounded-xl border border-border p-3">
+            <p className="mb-2 text-sm font-semibold text-slate-900">Merchant activity</p>
+            <div className="space-y-2">
+              {merchantActivity.slice(0, 12).map((row) => (
+                <div key={row.activity_id} className="rounded-lg border border-border px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-slate-900">{row.activity_type.replaceAll("_", " ")}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(row.created_at).toLocaleString()}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {getPiCodeLabel((row.currency || defaultCurrency).toUpperCase())} {Number(row.amount || 0).toFixed(2)} · {row.status} · {row.source}
+                  </p>
+                  {!!row.note && <p className="text-xs text-slate-600">{row.note}</p>}
+                </div>
+              ))}
+              {!merchantActivity.length && <p className="text-sm text-muted-foreground">No merchant activity yet.</p>}
+            </div>
           </div>
         </div>
       );
@@ -842,7 +979,12 @@ const MerchantOnboardingPage = () => {
       <div className="flex min-h-[calc(100vh-32px)]">
         <aside className="hidden w-64 border-r border-slate-200 bg-white p-4 md:block">
           <div className="mb-6 flex items-center gap-2"><BrandLogo className="h-8 w-8" /><div><p className="text-xs uppercase tracking-wide text-slate-500">OpenPay</p><p className="text-lg font-bold text-slate-900">Merchant Portal</p></div></div>
-          <nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = activeView === item.key; return <button key={item.key} onClick={() => setActiveView(item.key)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}><Icon className="h-4 w-4" />{item.label}</button>; })}</nav>
+          <nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = activeView === item.key; return <button key={item.key} onClick={() => setActiveView(item.key)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${active ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50"}`}><Icon className="h-4 w-4" />{item.label}</button>; })}
+            <button onClick={() => navigate("/merchant-pos")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+              <Store className="h-4 w-4" />
+              POS
+            </button>
+          </nav>
           <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/openpay-api-docs")}><FileText className="mr-2 h-4 w-4" /> API docs</Button>
           <Button variant="outline" className="mt-2 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>
         </aside>
@@ -903,6 +1045,10 @@ const MerchantOnboardingPage = () => {
                 </button>
               );
             })}
+            <button onClick={() => navigate("/merchant-pos")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+              <Store className="h-4 w-4" />
+              POS
+            </button>
           </nav>
           <Button variant="outline" className="mt-6 h-9 w-full rounded-lg" onClick={() => navigate("/openpay-api-docs")}><FileText className="mr-2 h-4 w-4" /> API docs</Button>
           <Button variant="outline" className="mt-2 h-9 w-full rounded-lg" onClick={() => navigate("/menu")}><ArrowLeft className="mr-2 h-4 w-4" /> Back to menu</Button>

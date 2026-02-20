@@ -20,6 +20,16 @@ interface Transaction {
   is_sent?: boolean;
   is_topup?: boolean;
 }
+interface MerchantActivityEntry {
+  activity_id: string;
+  activity_type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  note: string;
+  created_at: string;
+  source: string;
+}
 
 const toPreviewText = (value: string, max = 68) => {
   const raw = String(value || "").trim();
@@ -44,6 +54,7 @@ const ActivityPage = () => {
   const [loading, setLoading] = useState(true);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
+  const [merchantActivities, setMerchantActivities] = useState<MerchantActivityEntry[]>([]);
   const navigate = useNavigate();
   const { format: formatCurrency } = useCurrency();
 
@@ -56,17 +67,19 @@ const ActivityPage = () => {
         return;
       }
 
-      const { data: txs } = await supabase
-        .from("transactions")
-        .select("*")
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order("created_at", { ascending: false });
-
-      const { data: wallet } = await supabase
-        .from("wallets")
-        .select("welcome_bonus_claimed_at")
-        .eq("user_id", user.id)
-        .single();
+      const [{ data: txs }, { data: wallet }, { data: merchantRows }] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("*")
+          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("wallets")
+          .select("welcome_bonus_claimed_at")
+          .eq("user_id", user.id)
+          .single(),
+        (supabase as any).rpc("get_my_merchant_activity", { p_mode: null, p_limit: 20, p_offset: 0 }),
+      ]);
 
       if (txs) {
         const enriched = await Promise.all(txs.map(async (tx) => {
@@ -103,6 +116,18 @@ const ActivityPage = () => {
           : [];
         setTransactions([...bonusTx, ...enriched]);
       }
+      setMerchantActivities(
+        (Array.isArray(merchantRows) ? merchantRows : []).map((row: any) => ({
+          activity_id: String(row.activity_id || ""),
+          activity_type: String(row.activity_type || "payment"),
+          amount: Number(row.amount || 0),
+          currency: String(row.currency || "USD"),
+          status: String(row.status || "completed"),
+          note: String(row.note || ""),
+          created_at: String(row.created_at || ""),
+          source: String(row.source || "merchant_portal"),
+        })),
+      );
       setLoading(false);
     };
     load();
@@ -133,6 +158,22 @@ const ActivityPage = () => {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold text-paypal-dark">Recent activity</h2>
       </div>
+
+      {!loading && merchantActivities.length > 0 && (
+        <div className="mb-4 rounded-3xl border border-border bg-white p-4">
+          <h3 className="text-sm font-semibold text-foreground">Merchant activity</h3>
+          <div className="mt-2 space-y-2">
+            {merchantActivities.slice(0, 6).map((row) => (
+              <div key={row.activity_id} className="rounded-xl border border-border px-3 py-2">
+                <p className="text-sm font-medium text-foreground">{row.activity_type.replaceAll("_", " ")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {row.currency} {row.amount.toFixed(2)} · {row.status} · {row.source}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="paypal-surface divide-y divide-border/70 rounded-3xl">
