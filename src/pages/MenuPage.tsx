@@ -200,9 +200,9 @@ const MenuPage = () => {
       items: [
         {
           icon: Monitor,
-          label: "OpenPay Desktop",
+          label: "Pi Browser",
           action: () => navigate("/openpay-desktop"),
-          subtitle: "Desktop sign-in",
+          subtitle: "Pi Browser sign-in",
         },
         {
           icon: Download,

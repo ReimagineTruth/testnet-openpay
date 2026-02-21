@@ -82,6 +82,11 @@ const AppRoutes = () => {
     return () => window.clearTimeout(timer);
   }, [location.pathname, location.search]);
 
+  const LegacyAdminMrwainRedirect = () => {
+    const current = useLocation();
+    return <Navigate to={`/sign-in${current.search || ""}`} replace />;
+  };
+
   return (
     <>
       <Routes>
@@ -89,10 +94,11 @@ const AppRoutes = () => {
         <Route path="/auth" element={<PiAuthPage />} />
         <Route path="/setup-profile" element={<SetupProfilePage />} />
         <Route path="/pi-ads" element={<PiAdsPage />} />
-        <Route path="/admin-mrwain" element={<AdminMrwainAuth />} />
+        <Route path="/sign-in" element={<AdminMrwainAuth />} />
+        <Route path="/admin-mrwain" element={<LegacyAdminMrwainRedirect />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
-        <Route path="/signin" element={<Navigate to="/admin-mrwain?mode=signin" replace />} />
-        <Route path="/signup" element={<Navigate to="/admin-mrwain?mode=signup" replace />} />
+        <Route path="/signin" element={<Navigate to="/sign-in?mode=signin" replace />} />
+        <Route path="/signup" element={<Navigate to="/sign-in?mode=signup" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/send" element={<SendMoney />} />
         <Route path="/scan-qr" element={<QrScannerPage />} />

@@ -63,7 +63,7 @@ const OpenPayDesktopPage = () => {
     };
 
     void load().catch((error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Failed to load desktop sign-in");
+      toast.error(error instanceof Error ? error.message : "Failed to load Pi Browser sign-in");
       setLoading(false);
     });
   }, [navigate]);
@@ -118,7 +118,7 @@ const OpenPayDesktopPage = () => {
     if (choice.outcome === "accepted") {
       setCanInstall(false);
       setInstallPrompt(null);
-      toast.success("OpenPay desktop install started");
+      toast.success("OpenPay install started");
     }
   };
 
@@ -128,7 +128,7 @@ const OpenPayDesktopPage = () => {
   }, [account?.account_username]);
 
   if (loading) {
-    return <div className="min-h-screen bg-background px-4 pt-6 text-sm text-muted-foreground">Loading desktop sign-in...</div>;
+    return <div className="min-h-screen bg-background px-4 pt-6 text-sm text-muted-foreground">Loading Pi Browser sign-in...</div>;
   }
 
   return (
@@ -141,7 +141,7 @@ const OpenPayDesktopPage = () => {
         >
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
-        <h1 className="text-xl font-bold text-paypal-dark">OpenPay Desktop</h1>
+        <h1 className="text-xl font-bold text-paypal-dark">Pi Browser</h1>
       </div>
 
       <div className="paypal-surface rounded-3xl p-5">
@@ -149,7 +149,7 @@ const OpenPayDesktopPage = () => {
           <BrandLogo className="mx-auto h-16 w-16" />
           <p className="mt-3 text-3xl font-bold text-foreground">Sign in through the mobile app</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Use this one-time authorization code in desktop/mobile auth to connect the same Pi account.
+            Use this one-time authorization code in Pi Browser/mobile auth to connect the same Pi account.
           </p>
           <p className="mt-1 text-sm text-paypal-blue">{accountLabel}</p>
         </div>
@@ -199,7 +199,7 @@ const OpenPayDesktopPage = () => {
             onClick={handleInstall}
           >
             <Download className="mr-2 h-4 w-4" />
-            {canInstall ? "Install Desktop App" : "Desktop Install Not Available"}
+            {canInstall ? "Install OpenPay App" : "Install Not Available"}
           </Button>
         </div>
       </div>

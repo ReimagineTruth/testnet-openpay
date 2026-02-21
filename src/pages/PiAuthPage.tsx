@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import BrandLogo from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { setAppCookie } from "@/lib/userPreferences";
@@ -218,20 +217,10 @@ const PiAuthPage = () => {
           </div>
 
           <div className="rounded-2xl border border-border/70 bg-white p-3">
-            <h2 className="text-base font-semibold text-foreground">OpenPay Desktop</h2>
+            <h2 className="text-base font-semibold text-foreground">Pi Browser</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Connect your Pi account. You can also enter authorization code for desktop/mobile sign in verification.
+              Connect your Pi account securely with Pi authentication.
             </p>
-            <Input
-              value={authorizationCode}
-              onChange={(e) => setAuthorizationCode(e.target.value.toUpperCase())}
-              placeholder="Authorization code (example: HDZRTBY1)"
-              className="mt-3 h-11 rounded-2xl border-white/70 bg-white"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Optional. If entered, OpenPay verifies the authenticated Pi account with this one-time code.
-            </p>
-            <p className="mt-1 text-xs font-medium text-paypal-blue">Do not share your code with anyone.</p>
             {!!searchParams.get("ref") && (
               <p className="mt-1 text-xs text-paypal-blue">
                 Referral code detected: {(searchParams.get("ref") || "").trim().toLowerCase()}
@@ -250,13 +239,15 @@ const PiAuthPage = () => {
               {busyAuth ? "Authenticating..." : "Authenticate with Pi"}
             </Button>
             <Button
-              onClick={handlePiAuth}
-              disabled={busyAuth || !authorizationCode.trim()}
+              asChild
               variant="outline"
               className="mt-2 h-11 w-full rounded-2xl"
             >
-              {busyAuth ? "Verifying..." : "Log In With Authorization Code"}
+              <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
             </Button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Use email sign in if you use OpenPay App and OpenPay Desktop Browser. Experience the full-screen experience, notifications, and more.
+            </p>
             {piUser && (
               <p className="mt-3 text-sm text-foreground">
                 Connected as <span className="font-semibold">@{piUser.username}</span> ({piUser.uid})

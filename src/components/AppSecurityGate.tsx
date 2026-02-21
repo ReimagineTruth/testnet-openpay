@@ -18,6 +18,7 @@ import { loadUserPreferences } from "@/lib/userPreferences";
 const PUBLIC_PATHS = new Set([
   "/",
   "/auth",
+  "/sign-in",
   "/signin",
   "/signup",
   "/ledger",

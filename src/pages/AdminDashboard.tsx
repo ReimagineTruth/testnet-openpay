@@ -94,7 +94,7 @@ const AdminDashboard = () => {
       } = await supabase.auth.getUser();
       if (!user) {
         toast.error("Sign in first to open admin dashboard");
-        navigate("/admin-mrwain?mode=signin", { replace: true });
+        navigate("/sign-in?mode=signin", { replace: true });
         return;
       }
 
