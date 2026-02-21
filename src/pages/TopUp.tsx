@@ -235,7 +235,7 @@ const TopUp = () => {
   const topUpButtonLabel = loading
     ? "Processing Pi payment..."
     : safeAmount > 0
-      ? `Pay with Pi and add ${usdCurrency.symbol}${safeAmount.toFixed(2)}`
+      ? `Pay with Pi and add ${usdCurrency.symbol}${safeAmount.toFixed(2)} PI USD`
       : "Enter amount to top up";
 
   return (
