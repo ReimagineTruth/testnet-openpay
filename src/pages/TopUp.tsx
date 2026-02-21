@@ -16,8 +16,9 @@ const TopUp = () => {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [isPiBrowser, setIsPiBrowser] = useState(false);
   const [generatedTopUpLink, setGeneratedTopUpLink] = useState("");
+  const [userAccountNumber, setUserAccountNumber] = useState("");
+  const [userAccountUsername, setUserAccountUsername] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currencies } = useCurrency();
@@ -25,15 +26,31 @@ const TopUp = () => {
   const sandbox = String(import.meta.env.VITE_PI_SANDBOX || "false").toLowerCase() === "true";
   const parsedAmount = Number(amount);
   const safeAmount = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
+  const linkAccountNumber = (searchParams.get("account_number") || "").trim().toUpperCase();
+  const linkUsername = (searchParams.get("username") || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+  const buildTopUpLink = (value: number) => {
+    if (typeof window === "undefined") return "";
+    const params = new URLSearchParams({
+      amount: value.toFixed(2),
+      mode: "link",
+    });
+    const targetAccountNumber = linkAccountNumber || userAccountNumber;
+    const targetUsername = linkUsername || userAccountUsername;
+    if (targetAccountNumber) params.set("account_number", targetAccountNumber);
+    if (targetUsername) params.set("username", targetUsername);
+    return `${window.location.origin}/topup?${params.toString()}`;
+  };
 
   const createTopUpLink = () => {
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       toast.error("Enter a valid amount first");
       return;
     }
-    if (typeof window === "undefined") return;
-    const normalized = parsedAmount.toFixed(2);
-    const link = `${window.location.origin}/topup?amount=${encodeURIComponent(normalized)}&mode=link`;
+    const link = buildTopUpLink(parsedAmount);
+    if (!link) return;
     setGeneratedTopUpLink(link);
     void navigator.clipboard.writeText(link).then(
       () => toast.success("Top up link copied"),
@@ -52,19 +69,14 @@ const TopUp = () => {
   };
 
   useEffect(() => {
-    const detectPiBrowser = () => {
-      const ua = typeof navigator !== "undefined" ? (navigator.userAgent || "") : "";
-      return /pibrowser|pi\s?browser|minepi/i.test(ua);
+    const loadAccountIdentity = async () => {
+      const { data, error } = await supabase.rpc("upsert_my_user_account");
+      if (error) return;
+      const row = data as { account_number?: string; account_username?: string } | null;
+      setUserAccountNumber(String(row?.account_number || "").trim().toUpperCase());
+      setUserAccountUsername(String(row?.account_username || "").trim().replace(/^@+/, "").toLowerCase());
     };
-
-    setIsPiBrowser(detectPiBrowser());
-
-    // Re-check shortly after mount for browser environments that delay UA availability.
-    const timer = window.setTimeout(() => {
-      setIsPiBrowser(detectPiBrowser());
-    }, 1200);
-
-    return () => window.clearTimeout(timer);
+    void loadAccountIdentity();
   }, []);
 
   useEffect(() => {
@@ -77,7 +89,6 @@ const TopUp = () => {
 
   const initPi = () => {
     if (!window.Pi) {
-      toast.error("Pi SDK not loaded. Open this app in Pi Browser.");
       return false;
     }
     window.Pi.init({ version: "2.0", sandbox });
@@ -106,7 +117,26 @@ const TopUp = () => {
       toast.error("Enter a valid amount");
       return;
     }
-    if (!initPi() || !window.Pi) return;
+    if (linkAccountNumber && userAccountNumber && linkAccountNumber !== userAccountNumber) {
+      toast.error(`This top-up link belongs to account ${linkAccountNumber}. Please sign in to that account.`);
+      return;
+    }
+    if (linkUsername && userAccountUsername && linkUsername !== userAccountUsername) {
+      toast.error(`This top-up link belongs to @${linkUsername}. Please sign in to that account.`);
+      return;
+    }
+
+    if (!initPi() || !window.Pi) {
+      const link = buildTopUpLink(parsedAmount);
+      if (link) {
+        setGeneratedTopUpLink(link);
+        void navigator.clipboard.writeText(link).then(
+          () => toast.message("Top up requires Pi Browser. Link copied for Pi Browser."),
+          () => toast.message("Top up requires Pi Browser. Use the generated link below."),
+        );
+      }
+      return;
+    }
 
     setLoading(true);
     try {
@@ -159,13 +189,29 @@ const TopUp = () => {
               completedTxid = txid;
               await invokeTopUpAction({ action: "complete", paymentId, txid }, "Pi server completion failed");
               await invokeTopUpAction(
-                { action: "credit", amount: parsedAmount, amountUsd: parsedAmount, paymentId, txid },
+                {
+                  action: "credit",
+                  amount: parsedAmount,
+                  amountUsd: parsedAmount,
+                  paymentId,
+                  txid,
+                  targetAccountNumber: linkAccountNumber || userAccountNumber || undefined,
+                  targetUsername: linkUsername || userAccountUsername || undefined,
+                },
                 "Top up failed",
               );
               resolve();
             },
             onCancel: () => reject(new Error("Payment cancelled")),
-            onError: (error) => reject(new Error(error instanceof Error ? error.message : error.message || "Payment failed")),
+            onError: (error) => {
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : error && typeof error === "object" && "message" in error
+                    ? String((error as { message?: unknown }).message || "Payment failed")
+                    : "Payment failed";
+              reject(new Error(message));
+            },
           },
         );
       });
@@ -188,11 +234,9 @@ const TopUp = () => {
 
   const topUpButtonLabel = loading
     ? "Processing Pi payment..."
-    : !isPiBrowser
-      ? "Open in Pi Browser to top up"
-      : safeAmount > 0
-        ? `Pay with Pi: ${safeAmount.toFixed(2)} PI USD`
-        : "Enter amount to Pay with Pi";
+    : safeAmount > 0
+      ? `Pay with Pi and add ${usdCurrency.symbol}${safeAmount.toFixed(2)}`
+      : "Enter amount to top up";
 
   return (
     <div className="min-h-screen bg-background px-4 pt-4">
@@ -229,55 +273,53 @@ const TopUp = () => {
         <p className="mb-4 text-center text-xs text-muted-foreground">OpenPay uses a stable in-app value: 1 Pi = 1 PI USD.</p>
         <Button
           onClick={handleTopUp}
-          disabled={loading || safeAmount <= 0 || !isPiBrowser}
+          disabled={loading || safeAmount <= 0}
           className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]"
         >
           {topUpButtonLabel}
         </Button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Top up with Pi works only in Pi Browser. If you use OpenPay with email, sign in with the same email in Pi Browser first, then top up.
+          Pi payment completes in Pi Browser. If you are not in Pi Browser, generate a top-up link and open it there.
         </p>
 
-        {!isPiBrowser && (
-          <div className="mt-4 rounded-2xl border border-border p-3">
-            <p className="text-sm font-semibold text-foreground">Top up link (Desktop / Other browser)</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Generate a link with this amount, open it in Pi Browser, then complete payment there.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-xl"
-                onClick={createTopUpLink}
-                disabled={safeAmount <= 0}
-              >
-                Generate Top Up Link
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-xl"
-                onClick={copyGeneratedTopUpLink}
-                disabled={!generatedTopUpLink}
-              >
-                Copy Link
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 rounded-xl"
-                onClick={() => window.open(generatedTopUpLink, "_blank")}
-                disabled={!generatedTopUpLink}
-              >
-                Open Link
-              </Button>
-            </div>
-            {!!generatedTopUpLink && (
-              <p className="mt-2 break-all text-xs text-muted-foreground">{generatedTopUpLink}</p>
-            )}
+        <div className="mt-4 rounded-2xl border border-border p-3">
+          <p className="text-sm font-semibold text-foreground">Top up link (Desktop / Other browser)</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Generate a link with this amount, open it in Pi Browser, then complete payment there.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={createTopUpLink}
+              disabled={safeAmount <= 0}
+            >
+              Generate Top Up Link
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={copyGeneratedTopUpLink}
+              disabled={!generatedTopUpLink}
+            >
+              Copy Link
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={() => window.open(generatedTopUpLink, "_blank")}
+              disabled={!generatedTopUpLink}
+            >
+              Open Link
+            </Button>
           </div>
-        )}
+          {!!generatedTopUpLink && (
+            <p className="mt-2 break-all text-xs text-muted-foreground">{generatedTopUpLink}</p>
+          )}
+        </div>
       </div>
 
       <TransactionReceipt

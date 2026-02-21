@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck } from "lucide-react";
+import { ArrowLeft, Search, Info, ScanLine, Bookmark, BookmarkCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -227,19 +227,19 @@ const SendMoney = () => {
     if (usdAmount > balance) { toast.error("Amount exceeds your available balance"); return; }
     setLoading(true);
 
-    const transferViaRpcFallback = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds", {
-        p_sender_id: user.id,
+    const transferViaSecureRpcFallback = async () => {
+      const { data: txId, error: rpcError } = await supabase.rpc("transfer_funds_authenticated", {
         p_receiver_id: selectedUser.id,
         p_amount: usdAmount,
         p_note: note || "",
       });
-      if (rpcError) throw rpcError;
+      if (rpcError) {
+        const rpcMessage =
+          typeof (rpcError as { message?: unknown })?.message === "string"
+            ? (rpcError as { message: string }).message
+            : "Fallback transfer failed";
+        throw new Error(rpcMessage);
+      }
       return String(txId || "");
     };
 
@@ -247,17 +247,21 @@ const SendMoney = () => {
     let usedFallback = false;
 
     const { data, error } = await supabase.functions.invoke("send-money", {
-      body: { receiver_email: "__by_id__", receiver_id: selectedUser.id, amount: usdAmount, note },
+      body: { receiver_id: selectedUser.id, amount: usdAmount, note },
     });
 
     if (error) {
       try {
-        txId = await transferViaRpcFallback();
+        txId = await transferViaSecureRpcFallback();
         usedFallback = true;
       } catch (fallbackError) {
         const edgeErrorMessage = await getFunctionErrorMessage(error, "Transfer failed");
         const fallbackErrorMessage =
-          fallbackError instanceof Error ? fallbackError.message : "Fallback transfer failed";
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : typeof (fallbackError as { message?: unknown })?.message === "string"
+              ? String((fallbackError as { message: string }).message)
+              : "Fallback transfer failed";
         setLoading(false);
         toast.error(`${edgeErrorMessage}. ${fallbackErrorMessage}`);
         return;
@@ -393,7 +397,14 @@ const SendMoney = () => {
             className="mb-6 h-12 rounded-2xl border-white/70 bg-white" />
           <Button onClick={handleOpenSendConfirm} disabled={loading || !amount || parseFloat(amount) <= 0}
             className="h-14 w-full rounded-full bg-paypal-blue text-lg font-semibold text-white hover:bg-[#004dc5]">
-            {loading ? "Sending..." : `Send ${currency.symbol}${amount || "0.00"}`}
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Sending...
+              </span>
+            ) : (
+              `Send ${currency.symbol}${amount || "0.00"}`
+            )}
           </Button>
         </div>
 
@@ -457,7 +468,14 @@ const SendMoney = () => {
                   await handleSend();
                 }}
               >
-                {loading ? "Sending..." : "Confirm & Send"}
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </span>
+                ) : (
+                  "Confirm & Send"
+                )}
               </Button>
             </div>
           </DialogContent>

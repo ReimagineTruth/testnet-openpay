@@ -628,6 +628,14 @@ export type Database = {
         }
         Returns: string
       }
+      transfer_funds_authenticated: {
+        Args: {
+          p_amount: number
+          p_note?: string
+          p_receiver_id: string
+        }
+        Returns: string
+      }
       update_my_virtual_card_controls: {
         Args: {
           p_card_settings?: Json | null

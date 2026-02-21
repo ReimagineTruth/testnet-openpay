@@ -51,6 +51,15 @@ serve(async (req) => {
     const amountUsd = (body as { amountUsd?: number }).amountUsd;
     const paymentId = (body as { paymentId?: string }).paymentId;
     const txid = (body as { txid?: string }).txid;
+    const targetAccountNumber = String(
+      (body as { targetAccountNumber?: string }).targetAccountNumber || "",
+    )
+      .trim()
+      .toUpperCase();
+    const targetUsername = String((body as { targetUsername?: string }).targetUsername || "")
+      .trim()
+      .replace(/^@+/, "")
+      .toLowerCase();
     const parsedAmount = Number(amount);
     const parsedAmountUsd = Number.isFinite(Number(amountUsd)) && Number(amountUsd) > 0 ? Number(amountUsd) : parsedAmount;
     if (!paymentId || typeof paymentId !== "string") throw new Error("Missing paymentId");
@@ -139,6 +148,51 @@ serve(async (req) => {
     const paymentPiUid = piPayment?.user_uid ? String(piPayment.user_uid) : "";
     if (linkedPiUid && paymentPiUid && linkedPiUid !== paymentPiUid) {
       throw new Error("Payment user does not match linked Pi account");
+    }
+
+    // Optional link-target guard: ensure link account identity matches signed-in user.
+    if (targetAccountNumber || targetUsername) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("full_name, username")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+
+      const fallbackAccountNumber = `OP${String(user.id).replace(/-/g, "").toUpperCase()}`;
+      const fallbackAccountUsername = String(profile?.username || "")
+        .trim()
+        .replace(/^@+/, "")
+        .toLowerCase() || "openpay";
+      const fallbackAccountName = String(profile?.full_name || "").trim() || "OpenPay User";
+
+      const { data: account, error: accountUpsertError } = await supabase
+        .from("user_accounts")
+        .upsert(
+          {
+            user_id: user.id,
+            account_number: fallbackAccountNumber,
+            account_username: fallbackAccountUsername,
+            account_name: fallbackAccountName,
+          },
+          { onConflict: "user_id" },
+        )
+        .select("account_number, account_username")
+        .single();
+      if (accountUpsertError) throw accountUpsertError;
+
+      const ownAccountNumber = String(account?.account_number || "").trim().toUpperCase();
+      const ownUsername = String(account?.account_username || "")
+        .trim()
+        .replace(/^@+/, "")
+        .toLowerCase();
+
+      if (targetAccountNumber && targetAccountNumber !== ownAccountNumber) {
+        throw new Error("This top-up link is for a different OpenPay account number");
+      }
+      if (targetUsername && targetUsername !== ownUsername) {
+        throw new Error("This top-up link is for a different OpenPay username");
+      }
     }
 
     const { error: creditLogError } = await supabase
