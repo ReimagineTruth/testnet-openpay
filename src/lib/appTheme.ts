@@ -8,9 +8,6 @@ export const getStoredAppTheme = (): AppThemeMode => {
   if (typeof window === "undefined") return "light";
   const saved = localStorage.getItem(APP_THEME_STORAGE_KEY);
   if (isThemeMode(saved)) return saved;
-  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  }
   return "light";
 };
 

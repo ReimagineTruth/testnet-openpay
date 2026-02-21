@@ -70,6 +70,10 @@ const AdminMrwainAuth = () => {
         </div>
 
         <div className="paypal-surface w-full rounded-3xl p-7 shadow-2xl shadow-black/15">
+          <Button asChild variant="outline" className="mb-4 h-10 w-full rounded-2xl">
+            <Link to="/auth">Back to Pi Authentication</Link>
+          </Button>
+
           <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-secondary p-1">
             <button
               onClick={() => setMode("signin")}
@@ -125,11 +129,25 @@ const AdminMrwainAuth = () => {
             <Button type="submit" disabled={loading} className="h-12 w-full rounded-2xl bg-paypal-blue text-white hover:bg-[#004dc5]">
               {loading ? "Please wait..." : mode === "signin" ? "Sign In" : "Create Account"}
             </Button>
+            <Button
+              asChild
+              type="button"
+              variant="outline"
+              className="h-12 w-full rounded-2xl"
+            >
+              <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
+                Landing Page
+              </a>
+            </Button>
           </form>
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
             By continuing, you agree to our <Link to="/terms" className="text-paypal-blue font-medium">Terms</Link> and{" "}
             <Link to="/privacy" className="text-paypal-blue font-medium">Privacy Policy</Link>.
+          </p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Learn more: <Link to="/about-openpay" className="text-paypal-blue font-medium">About OpenPay</Link> -{" "}
+            <Link to="/legal" className="text-paypal-blue font-medium">Legal</Link>
           </p>
         </div>
       </div>

@@ -245,6 +245,16 @@ const PiAuthPage = () => {
             >
               <Link to="/sign-in?mode=signin">Use Email Sign In</Link>
             </Button>
+            <Button
+              asChild
+              type="button"
+              variant="outline"
+              className="mt-2 h-11 w-full rounded-2xl"
+            >
+              <a href="https://openpaylandingpage.vercel.app/" target="_blank" rel="noreferrer">
+                Landing Page
+              </a>
+            </Button>
             <p className="mt-2 text-xs text-muted-foreground">
               Use email sign in if you use OpenPay App and OpenPay Desktop Browser. Experience the full-screen experience, notifications, and more.
             </p>
