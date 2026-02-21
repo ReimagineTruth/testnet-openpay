@@ -29,7 +29,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, paymentId, txid, accessToken, adId } = await req.json();
+    const { action, paymentId, txid, accessToken, adId, payment } = await req.json();
     if (!action || typeof action !== "string") {
       return jsonResponse({ error: "Missing action" }, 400);
     }
@@ -99,6 +99,75 @@ serve(async (req) => {
       return jsonResponse({ success: true, rewarded, data });
     }
 
+    if (action === "a2u_config_status") {
+      const hasApiKey = Boolean(apiKey);
+      const hasValidationKey = Boolean(Deno.env.get("PI_VALIDATION_KEY"));
+      const hasWalletPrivateSeed = Boolean(Deno.env.get("PI_WALLET_PRIVATE_SEED"));
+      const hasWalletPublicAddress = Boolean(Deno.env.get("PI_WALLET_PUBLIC_ADDRESS"));
+      return jsonResponse({
+        success: true,
+        data: {
+          hasApiKey,
+          hasValidationKey,
+          hasWalletPrivateSeed,
+          hasWalletPublicAddress,
+        },
+      });
+    }
+
+    if (action === "a2u_create") {
+      if (!payment || typeof payment !== "object") {
+        return jsonResponse({ error: "Missing payment payload" }, 400);
+      }
+
+      const body = payment as Record<string, unknown>;
+      const amount = Number(body.amount);
+      const uid = typeof body.uid === "string" ? body.uid.trim() : "";
+      const memo = typeof body.memo === "string" ? body.memo.trim() : "";
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return jsonResponse({ error: "Invalid payment.amount" }, 400);
+      }
+      if (!uid) {
+        return jsonResponse({ error: "Missing payment.uid" }, 400);
+      }
+      if (!memo) {
+        return jsonResponse({ error: "Missing payment.memo" }, 400);
+      }
+
+      const piResponse = await fetch("https://api.minepi.com/v2/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Key ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = parseJson(await piResponse.text());
+      if (!piResponse.ok) {
+        return jsonResponse({ error: "Pi A2U create failed", status: piResponse.status, data }, 400);
+      }
+
+      return jsonResponse({ success: true, data });
+    }
+
+    if (action === "a2u_incomplete") {
+      const piResponse = await fetch("https://api.minepi.com/v2/payments/incomplete_server_payments", {
+        method: "GET",
+        headers: {
+          Authorization: `Key ${apiKey}`,
+        },
+      });
+
+      const data = parseJson(await piResponse.text());
+      if (!piResponse.ok) {
+        return jsonResponse({ error: "Pi incomplete payments fetch failed", status: piResponse.status, data }, 400);
+      }
+
+      return jsonResponse({ success: true, data });
+    }
+
     if (!paymentId || typeof paymentId !== "string") {
       return jsonResponse({ error: "Missing paymentId" }, 400);
     }
@@ -108,14 +177,14 @@ serve(async (req) => {
     let method: "GET" | "POST" = "POST";
     let body: Record<string, unknown> | undefined;
 
-    if (action === "approve" || action === "payment_approve") {
+    if (action === "approve" || action === "payment_approve" || action === "a2u_approve") {
       endpoint = `${endpointBase}/approve`;
-    } else if (action === "complete" || action === "payment_complete") {
+    } else if (action === "complete" || action === "payment_complete" || action === "a2u_complete") {
       endpoint = `${endpointBase}/complete`;
       if (txid && typeof txid === "string") body = { txid };
-    } else if (action === "cancel" || action === "payment_cancel") {
+    } else if (action === "cancel" || action === "payment_cancel" || action === "a2u_cancel") {
       endpoint = `${endpointBase}/cancel`;
-    } else if (action === "get" || action === "payment_get") {
+    } else if (action === "get" || action === "payment_get" || action === "a2u_get") {
       endpoint = endpointBase;
       method = "GET";
     } else {
